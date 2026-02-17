@@ -9,21 +9,72 @@ from glob import glob
 STATS_FILE = 'stats.json'
 ALPHA = 0.3
 DATA_FOLDER = 'data'
+STATS_FOLDER = 'stats'
 RECENT_EXCLUDE_COUNT = 10
 
+class NormalQuestionModel:
+    question: str = None
+    answer: str = None
+    source_file: str = None
+    score_ema: float = 0
+    answer_count: int = 0
+    weight: float = 0
+
+    def __init__(self, q, a, s):
+        self.question = q
+        self.answer = a
+        self.source_file = s
+        pass
+
+    def set_stats(self, score, count):
+        self.score_ema = score
+        self.answer_count = count
+        self.weight = calc_waight(score, count)
+
+def calc_waight(score: float, count: int) -> float:
+    return max(1.0 - score, 0.1) * (1.0 / (count + 1))
+
+def load_all_questions() -> list[NormalQuestionModel]:
+    question_list = []
+    data_path = os.path.join(os.path.dirname(__file__), DATA_FOLDER)
+    csv_files = glob(os.path.join(data_path, '*.csv'))
+
+    for file in csv_files:
+        try:
+            with open(file, newline='', encoding='utf-8') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if len(row) >= 2 and not(row[0] == "問題"):
+                        question_list.append(NormalQuestionModel(row[0].strip(), row[1].strip(), os.path.basename(file)))
+        except Exception as e:
+            print(f"読み込みエラー: {file}: {e}")
+
+    return question_list
+
+
+def load_stats(data_file, questions: list[NormalQuestionModel]):
+    def load_stats_impl(file):
+        if os.path.exists(file):
+            with open(file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+    stats = os.path.join(STATS_FOLDER, f"{os.path.splitext(data_file)[0]}.json")
+    r = load_stats_impl(stats)
+    for q in questions:
+        question_stats = r[q.question]
+        q.set_stats(float(question_stats["ema"]), int(question_stats["count"]))
+    return questions
 
 class QuizApp:
     def __init__(self, root):
         self.root = root
         self.root.title("学習クイズ")
-        self.questions = self.load_all_questions()  # (question, answer, filename) を保持
+        self.questions_new = load_all_questions()
         self.stats = self.load_stats()
         self.recent_history = []
-        self.current_question = None
-        self.current_answer = None
-        self.current_source = None
+        self.current_question: NormalQuestionModel = None
 
-        if not self.questions:
+        if not self.questions_new:
             messagebox.showerror("エラー", f"{DATA_FOLDER}/ に有効なCSVファイルが見つかりませんでした。")
             root.quit()
             return
@@ -78,7 +129,7 @@ class QuizApp:
 
         return question_list
 
-    def load_stats(self):
+    def load_stats(self): # TODO 削除
         if os.path.exists(STATS_FILE):
             with open(STATS_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -91,16 +142,14 @@ class QuizApp:
     def next_question(self):
         self.answer_label.config(text="")
 
-        weighted_pool = []
-        for q, a, src in self.questions:
-            if q in self.recent_history:
+        weighted_pool: list[NormalQuestionModel] = []
+        for question_info in self.questions_new:
+            if question_info.question in self.recent_history:
                 continue
 
-            stat = self.stats.get(q, {"ema": 0.5, "count": 0})
-            ema = stat["ema"]
-            count = stat["count"]
-            weight = max(1.0 - ema, 0.1) * (1.0 / (count + 1))
-            weighted_pool.append(((q, a, src), weight))
+            stat = self.stats.get(question_info.question, {"ema": 0.0, "count": 0})
+            question_info.set_stats(stat["ema"], stat["count"])
+            weighted_pool.append(question_info)
 
         if not weighted_pool:
             self.question_label.config(text="出題条件に合う問題がありません。")
@@ -108,26 +157,26 @@ class QuizApp:
             self.source_label.config(text="")
             return
 
-        (self.current_question, self.current_answer, self.current_source), _ = random.choices(
+        self.current_question = random.choices(
             weighted_pool,
-            weights=[w for _, w in weighted_pool]
+            weights=[q.weight for q in weighted_pool]
         )[0]
 
-        stat = self.stats.get(self.current_question, {"ema": 0.5, "count": 0})
-        self.question_label.config(text=self.current_question)
+        stat = self.stats.get(self.current_question.question, {"ema": 0.5, "count": 0})
+        self.question_label.config(text=self.current_question.question)
         self.rate_label.config(
-            text=f"スコア: {stat['ema'] * 100:.1f}% 回答回数: {stat['count']}")
-        self.source_label.config(text=f"出典: {self.current_source}")
+            text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
+        self.source_label.config(text=f"出典: {self.current_question.source_file}")
 
-        self.recent_history.append(self.current_question)
+        self.recent_history.append(self.current_question.question)
         if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
             self.recent_history.pop(0)
 
     def show_answer(self):
-        self.answer_label.config(text=self.current_answer)
+        self.answer_label.config(text=self.current_question.answer)
 
     def mark_answer(self, correct):
-        key = self.current_question
+        key = self.current_question.question
         stat = self.stats.get(key, {"ema": 0.5, "count": 0})
         score = 1.0 if correct else 0.0
         stat["ema"] = ALPHA * score + (1 - ALPHA) * stat["ema"]
