@@ -69,12 +69,12 @@ class QuizApp:
     def __init__(self, root):
         self.root = root
         self.root.title("学習クイズ")
-        self.questions_new = load_all_questions()
-        self.stats = self.load_stats()
+        self.questions = load_all_questions()
+        self.stats_old = self.load_stats()
         self.recent_history = []
         self.current_question: NormalQuestionModel = None
 
-        if not self.questions_new:
+        if not self.questions:
             messagebox.showerror("エラー", f"{DATA_FOLDER}/ に有効なCSVファイルが見つかりませんでした。")
             root.quit()
             return
@@ -137,17 +137,17 @@ class QuizApp:
 
     def save_stats(self):
         with open(STATS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(self.stats, f, ensure_ascii=False, indent=2)
+            json.dump(self.stats_old, f, ensure_ascii=False, indent=2)
 
     def next_question(self):
         self.answer_label.config(text="")
 
         weighted_pool: list[NormalQuestionModel] = []
-        for question_info in self.questions_new:
+        for question_info in self.questions:
             if question_info.question in self.recent_history:
                 continue
 
-            stat = self.stats.get(question_info.question, {"ema": 0.0, "count": 0})
+            stat = self.stats_old.get(question_info.question, {"ema": 0.0, "count": 0})
             question_info.set_stats(stat["ema"], stat["count"])
             weighted_pool.append(question_info)
 
@@ -162,7 +162,7 @@ class QuizApp:
             weights=[q.weight for q in weighted_pool]
         )[0]
 
-        stat = self.stats.get(self.current_question.question, {"ema": 0.5, "count": 0})
+        stat = self.stats_old.get(self.current_question.question, {"ema": 0.5, "count": 0})
         self.question_label.config(text=self.current_question.question)
         self.rate_label.config(
             text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
@@ -177,11 +177,11 @@ class QuizApp:
 
     def mark_answer(self, correct):
         key = self.current_question.question
-        stat = self.stats.get(key, {"ema": 0.5, "count": 0})
+        stat = self.stats_old.get(key, {"ema": 0.5, "count": 0})
         score = 1.0 if correct else 0.0
         stat["ema"] = ALPHA * score + (1 - ALPHA) * stat["ema"]
         stat["count"] += 1
-        self.stats[key] = stat
+        self.stats_old[key] = stat
         self.save_stats()
         self.next_question()
 
