@@ -29,10 +29,10 @@ class NormalQuestionModel:
     def set_stats(self, score, count):
         self.score_ema = score
         self.answer_count = count
-        self.weight = calc_waight(score, count)
+        self.__update_waight()
 
-def calc_waight(score: float, count: int) -> float:
-    return max(1.0 - score, 0.1) * (1.0 / (count + 1))
+    def __update_waight(self):
+        return max(1.0 - self.score_ema, 0.1) * (1.0 / (self.answer_count + 1))
 
 def load_all_questions() -> list[NormalQuestionModel]:
     question_list = []
