@@ -70,7 +70,7 @@ class QuestionList:
             self.__save_stats_impl(f)
 
     def __csv_to_stat_file(self, csv: str) -> str:
-        return os.path.join(STATS_FOLDER, f"{os.path.splitext(csv)[0]}.json")
+        return os.path.join(STATS_FOLDER, f"{os.path.splitext(csv)[0]}.json") # TODO パスが stats/ ではなく data/ になるバグ
 
     def __load_csv(self, csv_file: str) -> list[NormalQuestionModel]:
         question: list[NormalQuestionModel] = []
@@ -146,7 +146,11 @@ class QuizApp:
             root.quit()
             return
 
-        # GUI構築
+        self.construct_gui()
+
+        self.next_question()
+
+    def construct_gui(self):
         self.question_label = tk.Label(
             root, text="問題を表示します", font=('Arial', 16),
             wraplength=600, justify='left'
@@ -177,8 +181,6 @@ class QuizApp:
         self.exit_button = tk.Button(root, text="終了", command=self.on_fin)
         self.exit_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        self.next_question()
-
     def on_fin(self):
         self.all_quesstion_list.save_stats()
         print("stat saved")
@@ -202,29 +204,8 @@ class QuizApp:
         return question_list
 
     def next_question(self):
-        self.answer_label.config(text="")
-
-        weighted_pool: list[NormalQuestionModel] = []
-        for question_info in self.questions:
-            if question_info.question in self.recent_history:
-                continue
-            weighted_pool.append(question_info)
-
-        if not weighted_pool:
-            self.question_label.config(text="出題条件に合う問題がありません。")
-            self.rate_label.config(text="")
-            self.source_label.config(text="")
-            return
-
-        self.current_question = random.choices(
-            weighted_pool,
-            weights=[q.weight for q in weighted_pool]
-        )[0]
-
-        self.question_label.config(text=self.current_question.question)
-        self.rate_label.config(
-            text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
-        self.source_label.config(text=f"出典: {self.current_question.source_file}")
+        question = self.get_random_question()
+        self.set_new_question(question)
 
         self.recent_history.append(self.current_question.question)
         if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
@@ -237,6 +218,35 @@ class QuizApp:
         self.current_question.update_stats(is_ok)
         self.next_question()
 
+    def set_new_question(self, question: NormalQuestionModel):
+        self.current_question = question
+
+        self.answer_label.config(text="")
+        if not self.current_question:
+            self.question_label.config(text="出題条件に合う問題がありません。")
+            self.rate_label.config(text="")
+            self.source_label.config(text="")
+            return
+
+        self.question_label.config(text=self.current_question.question)
+        self.rate_label.config(
+            text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
+        self.source_label.config(text=f"出典: {self.current_question.source_file}")
+
+    def get_random_question(self):
+        weighted_pool: list[NormalQuestionModel] = []
+        for question_info in self.questions:
+            if question_info.question in self.recent_history:
+                continue
+            weighted_pool.append(question_info)
+
+        if not weighted_pool:
+            return None
+
+        return random.choices(
+            weighted_pool,
+            weights=[q.weight for q in weighted_pool]
+        )[0]
 
 if __name__ == "__main__":
     root = tk.Tk()
