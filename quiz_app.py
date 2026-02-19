@@ -95,36 +95,6 @@ class QuestionDataInterface:
     def __csv_to_stat_file(self, csv: str) -> str:
         return os.path.join(STATS_FOLDER, f"{os.path.splitext(csv)[0]}.json") # TODO パスが stats/ ではなく data/ になるバグ
 
-def load_all_questions() -> list[NormalQuestionModel]:
-    question_list = []
-    data_path = os.path.join(os.path.dirname(__file__), DATA_FOLDER)
-    csv_files = glob(os.path.join(data_path, '*.csv'))
-
-    for file in csv_files:
-        try:
-            with open(file, newline='', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if len(row) >= 2 and not(row[0] == "問題"):
-                        question_list.append(NormalQuestionModel(row[0].strip(), row[1].strip(), os.path.basename(file)))
-        except Exception as e:
-            print(f"読み込みエラー: {file}: {e}")
-
-    return question_list
-
-def load_stats(data_file, questions: list[NormalQuestionModel]):
-    def load_stats_impl(file):
-        if os.path.exists(file):
-            with open(file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return {}
-    stats = os.path.join(STATS_FOLDER, f"{os.path.splitext(data_file)[0]}.json")
-    r = load_stats_impl(stats)
-    for q in questions:
-        question_stats = r[q.question]
-        q.set_stats(float(question_stats["ema"]), int(question_stats["count"]))
-    return questions
-
 class QuizApp:
     def __init__(self, root):
         self.root = root
@@ -178,23 +148,6 @@ class QuizApp:
         self.quesstion_data_interface.save_stats()
         print("stat saved")
         self.root.quit()
-
-    def load_all_questions(self):
-        question_list = []
-        data_path = os.path.join(os.path.dirname(__file__), DATA_FOLDER)
-        csv_files = glob(os.path.join(data_path, '*.csv'))
-
-        for file in csv_files:
-            try:
-                with open(file, newline='', encoding='utf-8') as f:
-                    reader = csv.reader(f)
-                    for row in reader:
-                        if len(row) >= 2:
-                            question_list.append((row[0].strip(), row[1].strip(), os.path.basename(file)))
-            except Exception as e:
-                print(f"読み込みエラー: {file}: {e}")
-
-        return question_list
 
     def next_question(self):
         question = self.get_random_question()
