@@ -66,6 +66,10 @@ class QuestionDataInterface:
             for row in reader:
                 if len(row) >= 2 and not(row[0] == "問題"):
                     question.append(NormalQuestionModel(row[0].strip(), row[1].strip(), os.path.basename(csv_file)))
+        if not question:
+            messagebox.showerror("エラー", f"{DATA_FOLDER}/ に有効なCSVファイルが見つかりませんでした。")
+            root.quit()
+            return
         return question
 
     def load_stats(self, csv_file: str):
@@ -95,74 +99,86 @@ class QuestionDataInterface:
     def __csv_to_stat_file(self, csv: str) -> str:
         return os.path.join(STATS_FOLDER, f"{os.path.splitext(csv)[0]}.json") # TODO パスが stats/ ではなく data/ になるバグ
 
-class QuizApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("学習クイズ")
-        self.quesstion_data_interface = QuestionDataInterface()
-        self.questions = self.quesstion_data_interface.get_questions()
-        self.recent_history = []
-        self.current_question: NormalQuestionModel = None
+class QuizModel:
+    question_data: QuestionDataInterface = QuestionDataInterface()
+    question_list: list[NormalQuestionModel] = None
+    recent_history: list[str] = []
 
-        if not self.questions:
-            messagebox.showerror("エラー", f"{DATA_FOLDER}/ に有効なCSVファイルが見つかりませんでした。")
-            root.quit()
-            return
+    def __init__(self):
+        self.question_list = self.question_data.get_questions()
+        pass
+
+    def get_random_question(self):
+        weighted_pool: list[NormalQuestionModel] = []
+        for question_info in self.question_list:
+            if question_info.question in self.recent_history:
+                continue
+            weighted_pool.append(question_info)
+
+        if not weighted_pool:
+            return None
+
+        result = random.choices(
+            weighted_pool,
+            weights=[q.weight for q in weighted_pool]
+        )[0]
+
+        self.recent_history.append(result.question)
+        if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
+            self.recent_history.pop(0)
+        return result
+    
+    def save(self):
+        self.question_data.save_stats()
+
+class QuizApp:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.quiz_model: QuizModel = QuizModel()
+        self.current_question: NormalQuestionModel = None
 
         self.construct_gui()
 
         self.next_question()
 
     def construct_gui(self):
+        self.root.title("学習クイズ")
         self.question_label = tk.Label(
-            root, text="問題を表示します", font=('Arial', 16),
+            self.root, text="問題を表示します", font=('Arial', 16),
             wraplength=600, justify='left'
         )
         self.question_label.pack(pady=20)
 
-        self.rate_label = tk.Label(root, text="", font=('Arial', 12))
+        self.rate_label = tk.Label(self.root, text="", font=('Arial', 12))
         self.rate_label.pack()
 
-        self.source_label = tk.Label(root, text="", font=('Arial', 10), fg="gray")
+        self.source_label = tk.Label(self.root, text="", font=('Arial', 10), fg="gray")
         self.source_label.pack()
 
         self.answer_label = tk.Label(
-            root, text="", font=('Arial', 14), fg="blue",
+            self.root, text="", font=('Arial', 14), fg="blue",
             wraplength=600, justify='left'
         )
         self.answer_label.pack(pady=10)
 
-        self.show_answer_button = tk.Button(root, text="解答を表示", command=self.show_answer)
+        self.show_answer_button = tk.Button(self.root, text="解答を表示", command=self.on_look_answer)
         self.show_answer_button.pack(pady=5)
 
-        self.correct_button = tk.Button(root, text="正解", command=lambda: self.mark_answer(True))
+        self.correct_button = tk.Button(self.root, text="正解", command=lambda: self.on_answer(True))
         self.correct_button.pack(side=tk.LEFT, padx=10, pady=10)
 
-        self.incorrect_button = tk.Button(root, text="不正解", command=lambda: self.mark_answer(False))
+        self.incorrect_button = tk.Button(self.root, text="不正解", command=lambda: self.on_answer(False))
         self.incorrect_button.pack(side=tk.LEFT, padx=10, pady=10)
 
-        self.exit_button = tk.Button(root, text="終了", command=self.on_fin)
+        self.exit_button = tk.Button(self.root, text="終了", command=self.on_fin)
         self.exit_button.pack(side=tk.RIGHT, padx=10, pady=10)
 
-    def on_fin(self):
-        self.quesstion_data_interface.save_stats()
-        print("stat saved")
-        self.root.quit()
-
     def next_question(self):
-        question = self.get_random_question()
+        question = self.quiz_model.get_random_question()
         self.set_new_question(question)
-
-        self.recent_history.append(self.current_question.question)
-        if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
-            self.recent_history.pop(0)
 
     def show_answer(self):
         self.answer_label.config(text=self.current_question.answer)
-
-    def mark_answer(self, is_ok):
-        self.current_question.update_stats(is_ok)
-        self.next_question()
 
     def set_new_question(self, question: NormalQuestionModel):
         self.current_question = question
@@ -179,22 +195,21 @@ class QuizApp:
             text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
         self.source_label.config(text=f"出典: {self.current_question.source_file}")
 
-    def get_random_question(self):
-        weighted_pool: list[NormalQuestionModel] = []
-        for question_info in self.questions:
-            if question_info.question in self.recent_history:
-                continue
-            weighted_pool.append(question_info)
+    def on_look_answer(self):
+        self.show_answer()
 
-        if not weighted_pool:
-            return None
+    def on_answer(self, is_ok):
+        self.current_question.update_stats(is_ok)
+        self.next_question()
 
-        return random.choices(
-            weighted_pool,
-            weights=[q.weight for q in weighted_pool]
-        )[0]
+    def on_fin(self):
+        self.quiz_model.save()
+        print("stat saved")
+        self.root.quit()
+
+    def start(self):
+        self.root.mainloop()
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = QuizApp(root)
-    root.mainloop()
+    app = QuizApp()
+    app.start()
