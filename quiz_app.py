@@ -73,11 +73,25 @@ class TextQuestion(Question):
 # 単一選択問題
 # =========================
 class SingleChoiceQuestion(Question):
-    def __init__(self, question, answer, choices, source_file):
+    def __init__(self, question, choices, source_file):
         super().__init__(question, source_file)
-        self.answer = answer
-        self.choices = choices
-        print(f"0000000000000 {choices}")
+
+        self.choices = []
+        self.answer = None
+
+        for choice in choices:
+            choice = choice.strip()
+
+            if choice.startswith("*"):
+                clean_choice = choice[1:].strip()
+                self.answer = clean_choice
+                self.choices.append(clean_choice)
+            else:
+                self.choices.append(choice)
+
+        # 安全対策：*が無かった場合
+        if not self.answer and self.choices:
+            self.answer = self.choices[0]
 
     def get_type(self):
         return "single_choice"
@@ -152,23 +166,24 @@ class QuestionDataInterface:
 
         for item in data:
             q = item.get("question")
-            a = item.get("answer")
-            q_type = item.get("type", "text")
             choices = item.get("choices", [])
+            q_type = item.get("type", "text")
 
-            if not q or not a:
+            if not q:
                 continue
 
-            if q_type == "single_choice":
+            if q_type == "single_choice" or choices:
                 questions.append(
                     SingleChoiceQuestion(
                         q.strip(),
-                        a.strip(),
                         choices,
                         os.path.basename(json_file)
                     )
                 )
             else:
+                a = item.get("answer")
+                if not a:
+                    continue
                 questions.append(
                     TextQuestion(
                         q.strip(),
@@ -176,6 +191,7 @@ class QuestionDataInterface:
                         os.path.basename(json_file)
                     )
                 )
+
         return questions
 
     def load_stats(self, file_path):
