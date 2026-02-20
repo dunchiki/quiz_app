@@ -6,114 +6,160 @@ import json
 import os
 from glob import glob
 
-STATS_FILE = 'stats.json'
 ALPHA = 0.3
 DATA_FOLDER = 'data'
 STATS_FOLDER = 'stats'
 RECENT_EXCLUDE_COUNT = 10
 EMA_DEFAULT = 0.0
 
-class NormalQuestionModel:
-    question: str = None
-    answer: str = None
-    source_file: str = None
-    score_ema: float = 0
-    answer_count: int = 0
-    weight: float = 0
 
-    def __init__(self, q, a, s):
+class NormalQuestionModel:
+    def __init__(self, q, a, s, choices=None):
         self.question = q
         self.answer = a
         self.source_file = s
-        pass
+        self.choices = choices or []
+        self.score_ema = 0.0
+        self.answer_count = 0
+        self.weight = 1.0
 
     def set_stats(self, score, count):
         self.score_ema = score
         self.answer_count = count
-        self.__update_waight()
+        self.__update_weight()
 
     def update_stats(self, is_ok: bool):
         self.answer_count += 1
-        score: float = 1.0 if is_ok else 0.0
+        score = 1.0 if is_ok else 0.0
         self.score_ema = ALPHA * score + (1 - ALPHA) * self.score_ema
-        self.__update_waight()
+        self.__update_weight()
 
-    def __update_waight(self):
+    def __update_weight(self):
         self.weight = max(1.0 - self.score_ema, 0.1) * (1.0 / (self.answer_count + 1))
-    
+
+
 class QuestionDataInterface:
-    loaded_question_dict: dict[str, list[NormalQuestionModel]] = {}
-    loaded_csv_files: list[str] = None
-
     def __init__(self):
-        data_path = os.path.join(os.path.dirname(__file__), DATA_FOLDER)
-        self.loaded_csv_files = glob(os.path.join(data_path, '*.csv'))
+        os.makedirs(STATS_FOLDER, exist_ok=True)
 
-        for csv_file in self.loaded_csv_files:
-            self.loaded_question_dict[csv_file] = self.load_csv(csv_file)
-            self.load_stats(csv_file)
+        data_path = os.path.join(os.path.dirname(__file__), DATA_FOLDER)
+        self.loaded_files = (
+            glob(os.path.join(data_path, '*.csv')) +
+            glob(os.path.join(data_path, '*.json'))
+        )
+
+        self.loaded_question_dict = {}
+
+        for file_path in self.loaded_files:
+            if file_path.endswith(".csv"):
+                questions = self.load_csv(file_path)
+            elif file_path.endswith(".json"):
+                questions = self.load_json(file_path)
+            else:
+                continue
+
+            self.loaded_question_dict[file_path] = questions
+            self.load_stats(file_path)
 
     def get_questions(self):
-        r = []
+        result = []
         for q_list in self.loaded_question_dict.values():
-            r.extend(q_list)
-        return r
-    
-    def load_csv(self, csv_file: str) -> list[NormalQuestionModel]:
-        question: list[NormalQuestionModel] = []
+            result.extend(q_list)
+        return result
+
+    def load_csv(self, csv_file):
+        questions = []
         with open(csv_file, newline='', encoding='utf-8') as f:
             reader = csv.reader(f)
             for row in reader:
-                if len(row) >= 2 and not(row[0] == "問題"):
-                    question.append(NormalQuestionModel(row[0].strip(), row[1].strip(), os.path.basename(csv_file)))
-        if not question:
-            messagebox.showerror("エラー", f"{DATA_FOLDER}/ に有効なCSVファイルが見つかりませんでした。")
-            root.quit()
-            return
-        return question
+                if len(row) >= 2 and row[0] != "問題":
+                    q = row[0].strip()
+                    a = row[1].strip()
+                    choices = [c.strip() for c in row[2:] if c.strip()]
+                    questions.append(
+                        NormalQuestionModel(
+                            q,
+                            a,
+                            os.path.basename(csv_file),
+                            choices
+                        )
+                    )
+        return questions
 
-    def load_stats(self, csv_file: str):
-        stat_file = self.__csv_to_stat_file(csv_file)
-        question = self.loaded_question_dict[csv_file]
+    def load_json(self, json_file):
+        questions = []
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        for item in data:
+            q = item.get("question")
+            a = item.get("answer")
+            choices = item.get("choices", [])
+
+            if not q or not a:
+                continue
+
+            questions.append(
+                NormalQuestionModel(
+                    q.strip(),
+                    a.strip(),
+                    os.path.basename(json_file),
+                    choices
+                )
+            )
+        return questions
+
+    def load_stats(self, file_path):
+        stat_file = self.__file_to_stat_file(file_path)
+        questions = self.loaded_question_dict[file_path]
+
         if os.path.exists(stat_file):
             with open(stat_file, 'r', encoding='utf-8') as f:
                 stat_dict = json.load(f)
         else:
             stat_dict = {}
 
-        for q in question:
-            question_stats = stat_dict.get(q.question, {"ema": EMA_DEFAULT, "count": 0})
-            q.set_stats(float(question_stats["ema"]), int(question_stats["count"]))
-        self.loaded_question_dict[csv_file] = question
-    
-    def save_stats(self):
-        for csv_file in self.loaded_question_dict.keys():
-            questions = self.loaded_question_dict[csv_file]
+        for q in questions:
+            question_stats = stat_dict.get(
+                q.question,
+                {"ema": EMA_DEFAULT, "count": 0}
+            )
+            q.set_stats(
+                float(question_stats["ema"]),
+                int(question_stats["count"])
+            )
 
-            stat_file = self.__csv_to_stat_file(csv_file)
-            stat = {q.question: {"ema": q.score_ema, "count": q.answer_count} for q in questions}
-            print(f"save stat to {stat_file}")
+    def save_stats(self):
+        for file_path, questions in self.loaded_question_dict.items():
+            stat_file = self.__file_to_stat_file(file_path)
+
+            stat = {
+                q.question: {
+                    "ema": q.score_ema,
+                    "count": q.answer_count
+                }
+                for q in questions
+            }
+
             with open(stat_file, 'w', encoding='utf-8') as f:
                 json.dump(stat, f, ensure_ascii=False, indent=2)
 
-    def __csv_to_stat_file(self, csv: str) -> str:
-        return os.path.join(STATS_FOLDER, f"{os.path.splitext(csv)[0]}.json") # TODO パスが stats/ ではなく data/ になるバグ
+    def __file_to_stat_file(self, file_path):
+        base = os.path.splitext(os.path.basename(file_path))[0]
+        return os.path.join(STATS_FOLDER, f"{base}.json")
+
 
 class QuizModel:
-    question_data: QuestionDataInterface = QuestionDataInterface()
-    question_list: list[NormalQuestionModel] = None
-    recent_history: list[str] = []
-
     def __init__(self):
+        self.question_data = QuestionDataInterface()
         self.question_list = self.question_data.get_questions()
-        pass
+        self.recent_history = []
 
     def get_random_question(self):
-        weighted_pool: list[NormalQuestionModel] = []
-        for question_info in self.question_list:
-            if question_info.question in self.recent_history:
-                continue
-            weighted_pool.append(question_info)
+        weighted_pool = [
+            q for q in self.question_list
+            if q.question not in self.recent_history
+        ]
 
         if not weighted_pool:
             return None
@@ -126,89 +172,183 @@ class QuizModel:
         self.recent_history.append(result.question)
         if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
             self.recent_history.pop(0)
+
         return result
-    
+
     def save(self):
         self.question_data.save_stats()
+
 
 class QuizApp:
     def __init__(self):
         self.root = tk.Tk()
-        self.quiz_model: QuizModel = QuizModel()
-        self.current_question: NormalQuestionModel = None
+        self.root.title("学習クイズ")
+
+        self.quiz_model = QuizModel()
+        self.current_question = None
+
+        self.selected_choice = tk.StringVar()
+        self.choice_buttons = []
 
         self.construct_gui()
-
         self.next_question()
 
     def construct_gui(self):
-        self.root.title("学習クイズ")
         self.question_label = tk.Label(
-            self.root, text="問題を表示します", font=('Arial', 16),
+            self.root, font=('Arial', 16),
             wraplength=600, justify='left'
         )
         self.question_label.pack(pady=20)
 
-        self.rate_label = tk.Label(self.root, text="", font=('Arial', 12))
+        self.rate_label = tk.Label(self.root, font=('Arial', 12))
         self.rate_label.pack()
 
-        self.source_label = tk.Label(self.root, text="", font=('Arial', 10), fg="gray")
+        self.source_label = tk.Label(self.root, font=('Arial', 10), fg="gray")
         self.source_label.pack()
 
         self.answer_label = tk.Label(
-            self.root, text="", font=('Arial', 14), fg="blue",
-            wraplength=600, justify='left'
+            self.root, font=('Arial', 14),
+            fg="blue", wraplength=600, justify='left'
         )
         self.answer_label.pack(pady=10)
 
-        self.show_answer_button = tk.Button(self.root, text="解答を表示", command=self.on_look_answer)
-        self.show_answer_button.pack(pady=5)
+        self.button_frame = tk.Frame(self.root)
+        self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
-        self.correct_button = tk.Button(self.root, text="正解", command=lambda: self.on_answer(True))
-        self.correct_button.pack(side=tk.LEFT, padx=10, pady=10)
+        self.show_answer_button = tk.Button(
+            self.button_frame, text="解答表示",
+            command=self.show_answer
+        )
+        self.show_answer_button.pack(side=tk.LEFT, padx=5)
 
-        self.incorrect_button = tk.Button(self.root, text="不正解", command=lambda: self.on_answer(False))
-        self.incorrect_button.pack(side=tk.LEFT, padx=10, pady=10)
+        self.correct_button = tk.Button(
+            self.button_frame, text="正解",
+            command=lambda: self.manual_answer(True)
+        )
+        self.correct_button.pack(side=tk.LEFT, padx=5)
 
-        self.exit_button = tk.Button(self.root, text="終了", command=self.on_fin)
-        self.exit_button.pack(side=tk.RIGHT, padx=10, pady=10)
+        self.incorrect_button = tk.Button(
+            self.button_frame, text="不正解",
+            command=lambda: self.manual_answer(False)
+        )
+        self.incorrect_button.pack(side=tk.LEFT, padx=5)
+
+        self.answer_button = tk.Button(
+            self.button_frame, text="回答する",
+            command=self.check_answer
+        )
+        self.answer_button.pack(side=tk.LEFT, padx=5)
+
+        self.next_button = tk.Button(
+            self.button_frame, text="次へ",
+            command=self.next_question
+        )
+        self.next_button.pack(side=tk.LEFT, padx=5)
+        self.next_button.config(state=tk.DISABLED)
+
+        self.exit_button = tk.Button(
+            self.button_frame, text="終了",
+            command=self.on_exit
+        )
+        self.exit_button.pack(side=tk.RIGHT, padx=5)
+
+    def clear_choices(self):
+        for btn in self.choice_buttons:
+            btn.destroy()
+        self.choice_buttons.clear()
 
     def next_question(self):
         question = self.quiz_model.get_random_question()
         self.set_new_question(question)
 
-    def show_answer(self):
-        self.answer_label.config(text=self.current_question.answer)
-
-    def set_new_question(self, question: NormalQuestionModel):
+    def set_new_question(self, question):
         self.current_question = question
-
         self.answer_label.config(text="")
-        if not self.current_question:
-            self.question_label.config(text="出題条件に合う問題がありません。")
-            self.rate_label.config(text="")
-            self.source_label.config(text="")
+        self.clear_choices()
+        self.next_button.config(state=tk.DISABLED)
+
+        if not question:
+            self.question_label.config(text="出題可能な問題がありません。")
             return
 
-        self.question_label.config(text=self.current_question.question)
+        self.question_label.config(text=question.question)
         self.rate_label.config(
-            text=f"スコア: {self.current_question.score_ema * 100:.1f}% 回答回数: {self.current_question.answer_count}")
-        self.source_label.config(text=f"出典: {self.current_question.source_file}")
+            text=f"正答率: {question.score_ema * 100:.1f}% 回答回数: {question.answer_count}"
+        )
+        self.source_label.config(text=f"出典: {question.source_file}")
 
-    def on_look_answer(self):
-        self.show_answer()
+        if question.choices:
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.DISABLED)
 
-    def on_answer(self, is_ok):
+            random.shuffle(question.choices)
+            self.selected_choice.set("")
+
+            def enable_answer():
+                self.answer_button.config(state=tk.NORMAL)
+
+            for choice in question.choices:
+                rb = tk.Radiobutton(
+                    self.root,
+                    text=choice,
+                    variable=self.selected_choice,
+                    value=choice,
+                    command=enable_answer
+                )
+                rb.pack(anchor='w')
+                self.choice_buttons.append(rb)
+
+        else:
+            self.correct_button.config(state=tk.NORMAL)
+            self.incorrect_button.config(state=tk.NORMAL)
+            self.answer_button.config(state=tk.DISABLED)
+
+    def show_answer(self):
+        if self.current_question:
+            self.answer_label.config(text=self.current_question.answer)
+
+    def manual_answer(self, is_ok):
+        if not self.current_question or self.current_question.choices:
+            return
+
         self.current_question.update_stats(is_ok)
         self.next_question()
 
-    def on_fin(self):
+    def check_answer(self):
+        if not self.current_question or not self.current_question.choices:
+            return
+
+        selected = self.selected_choice.get()
+        if not selected:
+            return
+
+        correct_answer = self.current_question.answer
+        is_ok = selected == correct_answer
+
+        for rb in self.choice_buttons:
+            value = rb.cget("value")
+
+            if value == correct_answer:
+                rb.config(fg="green")
+
+            if value == selected and not is_ok:
+                rb.config(fg="red")
+
+            rb.config(state=tk.DISABLED)
+
+        self.current_question.update_stats(is_ok)
+
+        self.answer_button.config(state=tk.DISABLED)
+        self.next_button.config(state=tk.NORMAL)
+
+    def on_exit(self):
         self.quiz_model.save()
-        print("stat saved")
         self.root.quit()
 
     def start(self):
         self.root.mainloop()
+
 
 if __name__ == "__main__":
     app = QuizApp()
