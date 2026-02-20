@@ -1,24 +1,25 @@
 import tkinter as tk
-from tkinter import messagebox
 import csv
 import random
 import json
 import os
 from glob import glob
+from abc import ABC, abstractmethod
 
 ALPHA = 0.3
 DATA_FOLDER = 'data'
 STATS_FOLDER = 'stats'
-RECENT_EXCLUDE_COUNT = 10
+RECENT_EXCLUDE_COUNT = 5
 EMA_DEFAULT = 0.0
 
 
-class NormalQuestionModel:
-    def __init__(self, q, a, s, choices=None):
-        self.question = q
-        self.answer = a
-        self.source_file = s
-        self.choices = choices or []
+# =========================
+# 抽象基底クラス
+# =========================
+class Question(ABC):
+    def __init__(self, question, source_file):
+        self.question = question
+        self.source_file = source_file
         self.score_ema = 0.0
         self.answer_count = 0
         self.weight = 1.0
@@ -26,18 +27,71 @@ class NormalQuestionModel:
     def set_stats(self, score, count):
         self.score_ema = score
         self.answer_count = count
-        self.__update_weight()
+        self._update_weight()
 
     def update_stats(self, is_ok: bool):
         self.answer_count += 1
         score = 1.0 if is_ok else 0.0
         self.score_ema = ALPHA * score + (1 - ALPHA) * self.score_ema
-        self.__update_weight()
+        self._update_weight()
 
-    def __update_weight(self):
+    def _update_weight(self):
         self.weight = max(1.0 - self.score_ema, 0.1) * (1.0 / (self.answer_count + 1))
 
+    @abstractmethod
+    def get_type(self):
+        pass
 
+    @abstractmethod
+    def get_correct_answer(self):
+        pass
+
+    @abstractmethod
+    def is_correct(self, user_input):
+        pass
+
+
+# =========================
+# 記述問題
+# =========================
+class TextQuestion(Question):
+    def __init__(self, question, answer, source_file):
+        super().__init__(question, source_file)
+        self.answer = answer
+
+    def get_type(self):
+        return "text"
+
+    def get_correct_answer(self):
+        return self.answer
+
+    def is_correct(self, user_input):
+        return None
+
+
+# =========================
+# 単一選択問題
+# =========================
+class SingleChoiceQuestion(Question):
+    def __init__(self, question, answer, choices, source_file):
+        super().__init__(question, source_file)
+        self.answer = answer
+        self.choices = choices
+        print(f"0000000000000 {choices}")
+
+    def get_type(self):
+        return "single_choice"
+
+    def get_correct_answer(self):
+        return self.answer
+
+    def is_correct(self, user_input):
+        return user_input == self.answer
+
+
+# =========================
+# データロード
+# =========================
 class QuestionDataInterface:
     def __init__(self):
         os.makedirs(STATS_FOLDER, exist_ok=True)
@@ -76,14 +130,19 @@ class QuestionDataInterface:
                     q = row[0].strip()
                     a = row[1].strip()
                     choices = [c.strip() for c in row[2:] if c.strip()]
-                    questions.append(
-                        NormalQuestionModel(
-                            q,
-                            a,
-                            os.path.basename(csv_file),
-                            choices
+
+                    if len(choices) >= 2:
+                        questions.append(
+                            SingleChoiceQuestion(
+                                q, a, choices, os.path.basename(csv_file)
+                            )
                         )
-                    )
+                    else:
+                        questions.append(
+                            TextQuestion(
+                                q, a, os.path.basename(csv_file)
+                            )
+                        )
         return questions
 
     def load_json(self, json_file):
@@ -94,19 +153,29 @@ class QuestionDataInterface:
         for item in data:
             q = item.get("question")
             a = item.get("answer")
+            q_type = item.get("type", "text")
             choices = item.get("choices", [])
 
             if not q or not a:
                 continue
 
-            questions.append(
-                NormalQuestionModel(
-                    q.strip(),
-                    a.strip(),
-                    os.path.basename(json_file),
-                    choices
+            if q_type == "single_choice":
+                questions.append(
+                    SingleChoiceQuestion(
+                        q.strip(),
+                        a.strip(),
+                        choices,
+                        os.path.basename(json_file)
+                    )
                 )
-            )
+            else:
+                questions.append(
+                    TextQuestion(
+                        q.strip(),
+                        a.strip(),
+                        os.path.basename(json_file)
+                    )
+                )
         return questions
 
     def load_stats(self, file_path):
@@ -120,14 +189,11 @@ class QuestionDataInterface:
             stat_dict = {}
 
         for q in questions:
-            question_stats = stat_dict.get(
+            stats = stat_dict.get(
                 q.question,
                 {"ema": EMA_DEFAULT, "count": 0}
             )
-            q.set_stats(
-                float(question_stats["ema"]),
-                int(question_stats["count"])
-            )
+            q.set_stats(float(stats["ema"]), int(stats["count"]))
 
     def save_stats(self):
         for file_path, questions in self.loaded_question_dict.items():
@@ -149,6 +215,9 @@ class QuestionDataInterface:
         return os.path.join(STATS_FOLDER, f"{base}.json")
 
 
+# =========================
+# クイズモデル
+# =========================
 class QuizModel:
     def __init__(self):
         self.question_data = QuestionDataInterface()
@@ -179,6 +248,9 @@ class QuizModel:
         self.question_data.save_stats()
 
 
+# =========================
+# GUI
+# =========================
 class QuizApp:
     def __init__(self):
         self.root = tk.Tk()
@@ -194,24 +266,43 @@ class QuizApp:
         self.next_question()
 
     def construct_gui(self):
+
+        # ===== コンテンツエリア =====
+        self.content_frame = tk.Frame(self.root)
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
+
         self.question_label = tk.Label(
-            self.root, font=('Arial', 16),
+            self.content_frame, font=('Arial', 16),
             wraplength=600, justify='left'
         )
         self.question_label.pack(pady=20)
 
-        self.rate_label = tk.Label(self.root, font=('Arial', 12))
+        self.rate_label = tk.Label(self.content_frame, font=('Arial', 12))
         self.rate_label.pack()
 
-        self.source_label = tk.Label(self.root, font=('Arial', 10), fg="gray")
+        self.source_label = tk.Label(
+            self.content_frame,
+            font=('Arial', 10),
+            fg="gray"
+        )
         self.source_label.pack()
 
         self.answer_label = tk.Label(
-            self.root, font=('Arial', 14),
-            fg="blue", wraplength=600, justify='left'
+            self.content_frame,
+            font=('Arial', 14),
+            fg="blue",
+            wraplength=600,
+            justify='left'
         )
         self.answer_label.pack(pady=10)
 
+        self.result_label = tk.Label(
+            self.content_frame,
+            font=('Arial', 14, 'bold')
+        )
+        self.result_label.pack(pady=5)
+
+        # ===== ボタンエリア =====
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
 
@@ -264,6 +355,7 @@ class QuizApp:
     def set_new_question(self, question):
         self.current_question = question
         self.answer_label.config(text="")
+        self.result_label.config(text="", fg="black")
         self.clear_choices()
         self.next_button.config(state=tk.DISABLED)
 
@@ -277,12 +369,13 @@ class QuizApp:
         )
         self.source_label.config(text=f"出典: {question.source_file}")
 
-        if question.choices:
+        if question.get_type() == "single_choice":
             self.correct_button.config(state=tk.DISABLED)
             self.incorrect_button.config(state=tk.DISABLED)
             self.answer_button.config(state=tk.DISABLED)
 
-            random.shuffle(question.choices)
+            choices = question.choices.copy()
+            random.shuffle(choices)
             self.selected_choice.set("")
 
             def enable_answer():
@@ -306,25 +399,31 @@ class QuizApp:
 
     def show_answer(self):
         if self.current_question:
-            self.answer_label.config(text=self.current_question.answer)
+            self.answer_label.config(
+                text=self.current_question.get_correct_answer()
+            )
 
     def manual_answer(self, is_ok):
-        if not self.current_question or self.current_question.choices:
+        if not self.current_question:
+            return
+        if self.current_question.get_type() != "text":
             return
 
         self.current_question.update_stats(is_ok)
         self.next_question()
 
     def check_answer(self):
-        if not self.current_question or not self.current_question.choices:
+        if not self.current_question:
+            return
+        if self.current_question.get_type() != "single_choice":
             return
 
         selected = self.selected_choice.get()
         if not selected:
             return
 
-        correct_answer = self.current_question.answer
-        is_ok = selected == correct_answer
+        is_ok = self.current_question.is_correct(selected)
+        correct_answer = self.current_question.get_correct_answer()
 
         for rb in self.choice_buttons:
             value = rb.cget("value")
@@ -336,6 +435,14 @@ class QuizApp:
                 rb.config(fg="red")
 
             rb.config(state=tk.DISABLED)
+
+        if is_ok:
+            self.result_label.config(text="正解です！", fg="green")
+        else:
+            self.result_label.config(
+                text=f"不正解です。正解は: {correct_answer}",
+                fg="red"
+            )
 
         self.current_question.update_stats(is_ok)
 
