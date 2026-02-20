@@ -389,7 +389,7 @@ class QuizApp:
                     value=choice,
                     command=enable_answer
                 )
-                rb.pack(anchor='w')
+                rb.pack(pady=2)
                 self.choice_buttons.append(rb)
 
         else:
