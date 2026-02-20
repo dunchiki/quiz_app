@@ -16,6 +16,8 @@ EMA_DEFAULT = 0.0
 # =========================
 # 抽象基底クラス
 # =========================
+
+# 問題固有の処理はできるだけこれを継承したクラス内に実装する
 class Question(ABC):
     def __init__(self, question, source_file):
         self.question = question
@@ -55,7 +57,10 @@ class Question(ABC):
 # 記述問題
 # =========================
 class TextQuestion(Question):
-    def __init__(self, question, answer, source_file):
+    def __init__(self, item, source_file):
+        question = item.get("question").strip()
+        answer = item.get("answer").strip()
+
         super().__init__(question, source_file)
         self.answer = answer
 
@@ -73,7 +78,10 @@ class TextQuestion(Question):
 # 単一選択問題
 # =========================
 class SingleChoiceQuestion(Question):
-    def __init__(self, question, choices, source_file):
+    def __init__(self, item, source_file):
+        question = item.get("question").strip()
+        choices = item.get("choices", [])
+
         super().__init__(question, source_file)
 
         self.choices = []
@@ -107,7 +115,10 @@ class SingleChoiceQuestion(Question):
 # 複数選択問題
 # =========================
 class MultiChoiceQuestion(Question):
-    def __init__(self, question, choices, source_file):
+    def __init__(self, item, source_file):
+        question = item.get("question").strip()
+        choices = item.get("choices", [])
+
         super().__init__(question, source_file)
 
         self.choices = []
@@ -169,6 +180,7 @@ class QuestionDataInterface:
             result.extend(q_list)
         return result
 
+    # 文章題専用
     def load_csv(self, csv_file):
         questions = []
         with open(csv_file, newline='', encoding='utf-8') as f:
@@ -177,65 +189,30 @@ class QuestionDataInterface:
                 if len(row) >= 2 and row[0] != "問題":
                     q = row[0].strip()
                     a = row[1].strip()
-                    choices = [c.strip() for c in row[2:] if c.strip()]
-
-                    if len(choices) >= 2:
-                        questions.append(
-                            SingleChoiceQuestion(
-                                q, a, choices, os.path.basename(csv_file)
-                            )
+                    questions.append(
+                        TextQuestion(
+                            q, a, os.path.basename(csv_file)
                         )
-                    else:
-                        questions.append(
-                            TextQuestion(
-                                q, a, os.path.basename(csv_file)
-                            )
-                        )
+                    )
         return questions
 
     def load_json(self, json_file):
         questions = []
+        source_file = os.path.basename(json_file)
 
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         for item in data:
-            q = item.get("question")
-            choices = item.get("choices", [])
             q_type = item.get("type", "text")
 
-            if not q:
-                continue
-
             if q_type == "multi_choice":
-                questions.append(
-                    MultiChoiceQuestion(
-                        q.strip(),
-                        choices,
-                        os.path.basename(json_file)
-                    )
-                )
-
-            elif q_type == "single_choice" or (not q_type and choices):
-                questions.append(
-                    SingleChoiceQuestion(
-                        q.strip(),
-                        choices,
-                        os.path.basename(json_file)
-                    )
-                )
-
+                questions.append(MultiChoiceQuestion(item, source_file))
+            elif q_type == "single_choice":
+                questions.append(SingleChoiceQuestion(item, source_file))
             else:
-                a = item.get("answer")
-                if not a:
-                    continue
-                questions.append(
-                    TextQuestion(
-                        q.strip(),
-                        a.strip(),
-                        os.path.basename(json_file)
-                    )
-                )
+                # 記述問題
+                questions.append(TextQuestion(item, source_file))
 
         return questions
 
@@ -493,10 +470,10 @@ class QuizApp:
         self.next_question()
 
     def check_answer(self):
-        if not self.current_question:
-            return
+        assert self.current_question
 
         q_type = self.current_question.get_type()
+        # assert q_type == "text" # 記述問題はここに来ない
 
         # =========================
         # 単一選択問題
@@ -504,8 +481,7 @@ class QuizApp:
         if q_type == "single_choice":
 
             selected = self.selected_choice.get()
-            if not selected:
-                return
+            assert selected
 
             is_ok = self.current_question.is_correct(selected)
             correct_answer = self.current_question.get_correct_answer()
@@ -521,20 +497,10 @@ class QuizApp:
 
                 rb.config(state=tk.DISABLED)
 
-            if is_ok:
-                self.result_label.config(text="正解です！", fg="green")
-            else:
-                self.result_label.config(
-                    text=f"不正解です。正解: {correct_answer}",
-                    fg="red"
-                )
-
             self.current_question.update_stats(is_ok)
 
             self.answer_button.config(state=tk.DISABLED)
             self.next_button.config(state=tk.NORMAL)
-            return
-
 
         # =========================
         # 複数選択問題
@@ -546,8 +512,7 @@ class QuizApp:
                 if var.get()
             ]
 
-            if not selected:
-                return
+            assert selected
 
             is_ok = self.current_question.is_correct(selected)
             correct_answers = self.current_question.correct_answers
@@ -562,27 +527,21 @@ class QuizApp:
                     cb.config(fg="red")
 
                 cb.config(state=tk.DISABLED)
-
-            if is_ok:
-                self.result_label.config(text="正解です！", fg="green")
-            else:
-                self.result_label.config(
-                    text=f"不正解です。正解: {', '.join(correct_answers)}",
-                    fg="red"
-                )
+            
+            correct_answer = ', '.join(correct_answers)
 
             self.current_question.update_stats(is_ok)
 
             self.answer_button.config(state=tk.DISABLED)
             self.next_button.config(state=tk.NORMAL)
-            return
 
-
-        # =========================
-        # 記述問題（安全処理）
-        # =========================
-        if q_type == "text":
-            return
+        if is_ok:
+            self.result_label.config(text="正解", fg="green")
+        else:
+            self.result_label.config(
+                text=f"不正解\n正解: {correct_answer}",
+                fg="red"
+            )
 
     def on_exit(self):
         self.quiz_model.save()
