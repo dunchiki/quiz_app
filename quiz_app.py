@@ -101,6 +101,40 @@ class SingleChoiceQuestion(Question):
 
     def is_correct(self, user_input):
         return user_input == self.answer
+    
+
+# =========================
+# 複数選択問題
+# =========================
+class MultiChoiceQuestion(Question):
+    def __init__(self, question, choices, source_file):
+        super().__init__(question, source_file)
+
+        self.choices = []
+        self.correct_answers = set()
+
+        for choice in choices:
+            choice = choice.strip()
+
+            if choice.startswith("*"):
+                clean = choice[1:].strip()
+                self.correct_answers.add(clean)
+                self.choices.append(clean)
+            else:
+                self.choices.append(choice)
+
+        # 安全対策
+        if not self.correct_answers and self.choices:
+            self.correct_answers.add(self.choices[0])
+
+    def get_type(self):
+        return "multi_choice"
+
+    def get_correct_answer(self):
+        return ", ".join(self.correct_answers)
+
+    def is_correct(self, user_input_set):
+        return set(user_input_set) == self.correct_answers
 
 
 # =========================
@@ -161,6 +195,7 @@ class QuestionDataInterface:
 
     def load_json(self, json_file):
         questions = []
+
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -172,7 +207,16 @@ class QuestionDataInterface:
             if not q:
                 continue
 
-            if q_type == "single_choice" or choices:
+            if q_type == "multi_choice":
+                questions.append(
+                    MultiChoiceQuestion(
+                        q.strip(),
+                        choices,
+                        os.path.basename(json_file)
+                    )
+                )
+
+            elif q_type == "single_choice" or (not q_type and choices):
                 questions.append(
                     SingleChoiceQuestion(
                         q.strip(),
@@ -180,6 +224,7 @@ class QuestionDataInterface:
                         os.path.basename(json_file)
                     )
                 )
+
             else:
                 a = item.get("answer")
                 if not a:
@@ -408,6 +453,25 @@ class QuizApp:
                 rb.pack(pady=2)
                 self.choice_buttons.append(rb)
 
+        elif question.get_type() == "multi_choice":
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.NORMAL)
+
+            self.selected_vars = []
+            choices = question.choices.copy()
+            random.shuffle(choices)
+
+            for choice in choices:
+                var = tk.BooleanVar()
+                cb = tk.Checkbutton(
+                    text=choice,
+                    variable=var
+                )
+                cb.pack(anchor='center')
+                self.choice_buttons.append(cb)
+                self.selected_vars.append((var, choice))
+
         else:
             self.correct_button.config(state=tk.NORMAL)
             self.incorrect_button.config(state=tk.NORMAL)
@@ -431,39 +495,94 @@ class QuizApp:
     def check_answer(self):
         if not self.current_question:
             return
-        if self.current_question.get_type() != "single_choice":
+
+        q_type = self.current_question.get_type()
+
+        # =========================
+        # 単一選択問題
+        # =========================
+        if q_type == "single_choice":
+
+            selected = self.selected_choice.get()
+            if not selected:
+                return
+
+            is_ok = self.current_question.is_correct(selected)
+            correct_answer = self.current_question.get_correct_answer()
+
+            for rb in self.choice_buttons:
+                value = rb.cget("text")
+
+                if value == correct_answer:
+                    rb.config(fg="green")
+
+                if value == selected and not is_ok:
+                    rb.config(fg="red")
+
+                rb.config(state=tk.DISABLED)
+
+            if is_ok:
+                self.result_label.config(text="正解です！", fg="green")
+            else:
+                self.result_label.config(
+                    text=f"不正解です。正解: {correct_answer}",
+                    fg="red"
+                )
+
+            self.current_question.update_stats(is_ok)
+
+            self.answer_button.config(state=tk.DISABLED)
+            self.next_button.config(state=tk.NORMAL)
             return
 
-        selected = self.selected_choice.get()
-        if not selected:
+
+        # =========================
+        # 複数選択問題
+        # =========================
+        if q_type == "multi_choice":
+
+            selected = [
+                choice for var, choice in self.selected_vars
+                if var.get()
+            ]
+
+            if not selected:
+                return
+
+            is_ok = self.current_question.is_correct(selected)
+            correct_answers = self.current_question.correct_answers
+
+            for cb in self.choice_buttons:
+                text = cb.cget("text")
+
+                if text in correct_answers:
+                    cb.config(fg="green")
+
+                if text in selected and text not in correct_answers:
+                    cb.config(fg="red")
+
+                cb.config(state=tk.DISABLED)
+
+            if is_ok:
+                self.result_label.config(text="正解です！", fg="green")
+            else:
+                self.result_label.config(
+                    text=f"不正解です。正解: {', '.join(correct_answers)}",
+                    fg="red"
+                )
+
+            self.current_question.update_stats(is_ok)
+
+            self.answer_button.config(state=tk.DISABLED)
+            self.next_button.config(state=tk.NORMAL)
             return
 
-        is_ok = self.current_question.is_correct(selected)
-        correct_answer = self.current_question.get_correct_answer()
 
-        for rb in self.choice_buttons:
-            value = rb.cget("value")
-
-            if value == correct_answer:
-                rb.config(fg="green")
-
-            if value == selected and not is_ok:
-                rb.config(fg="red")
-
-            rb.config(state=tk.DISABLED)
-
-        if is_ok:
-            self.result_label.config(text="正解です！", fg="green")
-        else:
-            self.result_label.config(
-                text=f"不正解です。正解は: {correct_answer}",
-                fg="red"
-            )
-
-        self.current_question.update_stats(is_ok)
-
-        self.answer_button.config(state=tk.DISABLED)
-        self.next_button.config(state=tk.NORMAL)
+        # =========================
+        # 記述問題（安全処理）
+        # =========================
+        if q_type == "text":
+            return
 
     def on_exit(self):
         self.quiz_model.save()
