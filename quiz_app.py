@@ -6,7 +6,7 @@ import os
 from glob import glob
 from abc import ABC, abstractmethod
 
-ALPHA = 0.3
+ALPHA = 0.4
 DATA_FOLDER = 'data'
 STATS_FOLDER = 'stats'
 RECENT_EXCLUDE_COUNT = 5
@@ -23,22 +23,42 @@ class Question(ABC):
         self.question = question
         self.source_file = source_file
         self.score_ema = 0.0
-        self.answer_count = 0
+        self.ok_count = 0
         self.weight = 1.0
+        self.disabled = False
 
-    def set_stats(self, score, count):
-        self.score_ema = score
-        self.answer_count = count
+    def set_stats(self, stat):
+        if not stat:
+            stat = {
+                "ema": EMA_DEFAULT,
+                "count": 0,
+                "disabled": False,
+            }
+        self.score_ema = float(stat["ema"])
+        self.ok_count = int(stat["count"])
         self._update_weight()
+        if "disabled" in stat:
+            self.disabled = bool(stat["disabled"])
+        else:
+            self.disabled = False
 
     def update_stats(self, is_ok: bool):
-        self.answer_count += 1
+        self.ok_count += 1 if is_ok else 0
         score = 1.0 if is_ok else 0.0
         self.score_ema = ALPHA * score + (1 - ALPHA) * self.score_ema
         self._update_weight()
 
+    def get_stats(self):
+        result = {
+            "ema": self.score_ema,
+            "count": self.ok_count
+        }
+        if self.disabled:
+            result["disabled"] = True
+        return result
+
     def _update_weight(self):
-        self.weight = max(1.0 - self.score_ema, 0.1) * (1.0 / (self.answer_count + 1))
+        self.weight = max(1.0 - self.score_ema, 0.1) * (1.0 / (self.ok_count + 1))
 
     @abstractmethod
     def get_type(self):
@@ -161,7 +181,7 @@ class QuestionDataInterface:
             glob(os.path.join(data_path, '*.json'))
         )
 
-        self.loaded_question_dict = {}
+        self.loaded_question_dict: dict[str, list[Question]] = {}
 
         for file_path in self.loaded_files:
             if file_path.endswith(".csv"):
@@ -174,10 +194,11 @@ class QuestionDataInterface:
             self.loaded_question_dict[file_path] = questions
             self.load_stats(file_path)
 
-    def get_questions(self):
-        result = []
+    def get_questions(self) -> list[Question]:
+        result: list[Question] = []
         for q_list in self.loaded_question_dict.values():
             result.extend(q_list)
+        result = [q for q in result if not q.disabled]
         return result
 
     # 文章題専用
@@ -218,7 +239,7 @@ class QuestionDataInterface:
 
     def load_stats(self, file_path):
         stat_file = self.__file_to_stat_file(file_path)
-        questions = self.loaded_question_dict[file_path]
+        questions: list[Question] = self.loaded_question_dict[file_path]
 
         if os.path.exists(stat_file):
             with open(stat_file, 'r', encoding='utf-8') as f:
@@ -227,23 +248,27 @@ class QuestionDataInterface:
             stat_dict = {}
 
         for q in questions:
-            stats = stat_dict.get(
-                q.question,
-                {"ema": EMA_DEFAULT, "count": 0}
-            )
-            q.set_stats(float(stats["ema"]), int(stats["count"]))
+            stats = stat_dict.get(q.question, None)
+            q.set_stats(stats)
 
     def save_stats(self):
         for file_path, questions in self.loaded_question_dict.items():
             stat_file = self.__file_to_stat_file(file_path)
 
+            score_sum = 0
+            c = 0
+            for q in questions:
+                if not q.disabled:
+                    score_sum += q.score_ema
+                    c += 1
+            
             stat = {
-                q.question: {
-                    "ema": q.score_ema,
-                    "count": q.answer_count
-                }
-                for q in questions
+                q.question: q.get_stats() for q in questions
             }
+            if c > 0:
+                score_avg = score_sum / c
+                stat["score_avg"] = score_avg
+                print(f"{questions[0].source_file} : {score_avg * 100:.1f}")
 
             with open(stat_file, 'w', encoding='utf-8') as f:
                 json.dump(stat, f, ensure_ascii=False, indent=2)
@@ -259,14 +284,16 @@ class QuestionDataInterface:
 class QuizModel:
     def __init__(self):
         self.question_data = QuestionDataInterface()
-        self.question_list = self.question_data.get_questions()
-        self.recent_history = []
+        self.question_list: list[Question] = self.question_data.get_questions()
+        self.recent_history: list[str] = []
 
-    def get_random_question(self):
-        weighted_pool = [
-            q for q in self.question_list
-            if q.question not in self.recent_history
-        ]
+    def get_random_question(self): # TODO 問題の無効化
+        # 未回答の問題を優先する
+        not_answered_questions = [q for q in self.question_list if q.ok_count == 0]
+        if not_answered_questions:
+            weighted_pool = not_answered_questions
+        else:
+            weighted_pool = [q for q in self.question_list if q.question not in self.recent_history]
 
         if not weighted_pool:
             return None
@@ -280,6 +307,7 @@ class QuizModel:
         if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
             self.recent_history.pop(0)
 
+        assert not result.disabled
         return result
 
     def save(self):
@@ -295,7 +323,7 @@ class QuizApp:
         self.root.title("学習クイズ")
 
         self.quiz_model = QuizModel()
-        self.current_question = None
+        self.current_question: Question = None
 
         self.selected_choice = tk.StringVar()
         self.choice_buttons = []
@@ -375,6 +403,12 @@ class QuizApp:
         self.next_button.pack(side=tk.LEFT, padx=5)
         self.next_button.config(state=tk.DISABLED)
 
+        self.disable_button = tk.Button(
+            self.button_frame, text="無効化",
+            command=self.on_click_disable_button
+        )
+        self.disable_button.pack(side=tk.LEFT, padx=5)
+
         self.exit_button = tk.Button(
             self.button_frame, text="終了",
             command=self.on_exit
@@ -386,11 +420,14 @@ class QuizApp:
             btn.destroy()
         self.choice_buttons.clear()
 
+    def on_click_disable_button(self):
+        self.current_question.disabled = True
+
     def next_question(self):
         question = self.quiz_model.get_random_question()
         self.set_new_question(question)
 
-    def set_new_question(self, question):
+    def set_new_question(self, question: Question):
         self.current_question = question
         self.answer_label.config(text="")
         self.result_label.config(text="", fg="black")
@@ -403,7 +440,7 @@ class QuizApp:
 
         self.question_label.config(text=question.question)
         self.rate_label.config(
-            text=f"正答率: {question.score_ema * 100:.1f}% 回答回数: {question.answer_count}"
+            text=f"スコア: {question.score_ema * 100:.1f} 回答回数: {question.ok_count}"
         )
         self.source_label.config(text=f"出典: {question.source_file}")
 
@@ -511,8 +548,6 @@ class QuizApp:
                 choice for var, choice in self.selected_vars
                 if var.get()
             ]
-
-            assert selected
 
             is_ok = self.current_question.is_correct(selected)
             correct_answers = self.current_question.correct_answers
