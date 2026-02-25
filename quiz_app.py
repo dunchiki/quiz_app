@@ -8,11 +8,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from enum import Enum
 
-ALPHA = 0.4
 DATA_FOLDER = 'data'
 STATS_FOLDER = 'stats'
-RECENT_EXCLUDE_COUNT = 10
-EMA_DEFAULT = 0.0
+RECENT_ANSWER_COUNT = 10
 WEEK_QUESTION_RATE_LIMIT = 0.4
 
 class Stats(Enum):
@@ -58,10 +56,10 @@ class Question(ABC):
         self.view_count += 1
 
         self.resent_results.append(is_correct)
-        if len(self.resent_results) > RECENT_EXCLUDE_COUNT:
+        if len(self.resent_results) > RECENT_ANSWER_COUNT:
             self.resent_results.pop(0)
 
-        self.interval = (self.interval + 1 if self.is_weak_question() else self.interval * 1.5) if is_correct else 1
+        self.interval = (self.interval + 1 if self.is_weak_question() else max(1.0, self.interval * 1.5)) if is_correct else 1
 
     def get_stats(self):
         return {
