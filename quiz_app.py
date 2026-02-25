@@ -5,13 +5,22 @@ import json
 import os
 from glob import glob
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
+from enum import Enum
 
 ALPHA = 0.4
 DATA_FOLDER = 'data'
 STATS_FOLDER = 'stats'
-RECENT_EXCLUDE_COUNT = 5
+RECENT_EXCLUDE_COUNT = 10
 EMA_DEFAULT = 0.0
+WEEK_QUESTION_RATE_LIMIT = 0.4
 
+class Stats(Enum):
+    Count = "count"
+    Disabled = "disabled"
+    ResentResults = "resent_results"
+    Interval = "Interval"
+    LastViewDate = "last_view_date"
 
 # =========================
 # 抽象基底クラス
@@ -19,46 +28,66 @@ EMA_DEFAULT = 0.0
 
 # 問題固有の処理はできるだけこれを継承したクラス内に実装する
 class Question(ABC):
+    view_count = 0
+    disabled = False
+    resent_results = []
+    interval = 0
+    last_view_date: datetime = None
+
     def __init__(self, question, source_file):
         self.question = question
         self.source_file = source_file
-        self.score_ema = 0.0
-        self.ok_count = 0
-        self.weight = 1.0
-        self.disabled = False
 
-    def set_stats(self, stat):
-        if not stat:
-            stat = {
-                "ema": EMA_DEFAULT,
-                "count": 0,
-                "disabled": False,
-            }
-        self.score_ema = float(stat["ema"])
-        self.ok_count = int(stat["count"])
-        self._update_weight()
-        if "disabled" in stat:
-            self.disabled = bool(stat["disabled"])
-        else:
-            self.disabled = False
+    def set_stats(self, stats):
+        if not stats: stats = {}
+        default_stats: dict = {
+            Stats.Count.value: 0,
+            Stats.Disabled.value: False,
+            Stats.ResentResults.value: [False, False, False, False, False],
+            Stats.Interval.value: 0,
+            Stats.LastViewDate.value: datetime.now()
+        }
+        self.view_count = int(stats[Stats.Count.value]) if Stats.Count.value in stats else default_stats[Stats.Count.value]
+        self.disabled = bool(stats[Stats.Disabled.value]) if Stats.Disabled.value in stats else default_stats[Stats.Disabled.value]
+        self.resent_results = list[bool](stats[Stats.ResentResults.value]) if Stats.ResentResults.value in stats else default_stats[Stats.ResentResults.value]
+        self.interval = int(stats[Stats.Interval.value]) if Stats.Interval.value in stats else default_stats[Stats.Interval.value]
+        self.last_view_date = datetime.fromisoformat(stats[Stats.LastViewDate.value]) if Stats.LastViewDate.value in stats else default_stats[Stats.LastViewDate.value]
 
-    def update_stats(self, is_ok: bool):
-        self.ok_count += 1 if is_ok else 0
-        score = 1.0 if is_ok else 0.0
-        self.score_ema = ALPHA * score + (1 - ALPHA) * self.score_ema
-        self._update_weight()
+    def update_stats(self, is_correct: bool):
+        self.last_view_date = datetime.now()
+        self.view_count += 1
+
+        self.resent_results.append(is_correct)
+        if len(self.resent_results) > RECENT_EXCLUDE_COUNT:
+            self.resent_results.pop(0)
+
+        self.interval = (self.interval + 1 if self.is_weak_question() else self.interval * 1.5) if is_correct else 1
 
     def get_stats(self):
-        result = {
-            "ema": self.score_ema,
-            "count": self.ok_count
+        return {
+            Stats.Count.value: self.view_count,
+            Stats.Disabled.value: self.disabled,
+            Stats.ResentResults.value: self.resent_results,
+            Stats.Interval.value: self.interval,
+            Stats.LastViewDate.value: self.last_view_date.isoformat(timespec="seconds")
         }
-        if self.disabled:
-            result["disabled"] = True
-        return result
 
-    def _update_weight(self):
-        self.weight = max(1.0 - self.score_ema, 0.1) * (1.0 / (self.ok_count + 1))
+    def get_correct_rate(self) -> float:
+        if len(self.resent_results) == 0:
+            return 0.0
+        correct_count = len([b for b in self.resent_results if b])
+        wrong_count = len([b for b in self.resent_results if not b])
+        return correct_count / (correct_count + wrong_count)
+    
+    def get_weight(self) -> float:
+        next_review = self.last_view_date + timedelta(days=self.interval)
+        return max(1.0, (datetime.now() - next_review).total_seconds() / (60 * 60 * 24))
+    
+    def is_enable(self):
+        next_review = self.last_view_date + timedelta(days=self.interval)
+        return (not self.disabled) and (datetime.now() > next_review)
+
+    def is_weak_question(self) -> bool: return self.get_correct_rate() < WEEK_QUESTION_RATE_LIMIT
 
     @abstractmethod
     def get_type(self):
@@ -259,7 +288,7 @@ class QuestionDataInterface:
             c = 0
             for q in questions:
                 if not q.disabled:
-                    score_sum += q.score_ema
+                    score_sum += q.get_correct_rate()
                     c += 1
             
             stat = {
@@ -285,27 +314,17 @@ class QuizModel:
     def __init__(self):
         self.question_data = QuestionDataInterface()
         self.question_list: list[Question] = self.question_data.get_questions()
-        self.recent_history: list[str] = []
 
     def get_random_question(self): # TODO 問題の無効化
-        # 未回答の問題を優先する
-        not_answered_questions = [q for q in self.question_list if q.ok_count == 0]
-        if not_answered_questions:
-            weighted_pool = not_answered_questions
-        else:
-            weighted_pool = [q for q in self.question_list if q.question not in self.recent_history]
+        weighted_pool = [q for q in self.question_list if q.is_enable()]
 
         if not weighted_pool:
             return None
 
         result = random.choices(
             weighted_pool,
-            weights=[q.weight for q in weighted_pool]
+            weights=[q.get_weight() for q in weighted_pool]
         )[0]
-
-        self.recent_history.append(result.question)
-        if len(self.recent_history) > RECENT_EXCLUDE_COUNT:
-            self.recent_history.pop(0)
 
         assert not result.disabled
         return result
@@ -440,7 +459,7 @@ class QuizApp:
 
         self.question_label.config(text=question.question)
         self.rate_label.config(
-            text=f"スコア: {question.score_ema * 100:.1f} 回答回数: {question.ok_count}"
+            text=f"直近正答率: {question.get_correct_rate() * 100:.1f} 回答回数: {question.view_count}"
         )
         self.source_label.config(text=f"出典: {question.source_file}")
 
