@@ -20,6 +20,11 @@ class Stats(Enum):
     Interval = "Interval"
     LastViewDate = "last_view_date"
 
+class QuizField(Enum):
+    Answer = "answer"
+    Quiz = "question"
+    Choices = "choices"
+
 # =========================
 # 抽象基底クラス
 # =========================
@@ -78,8 +83,8 @@ class Question(ABC):
         return correct_count / (correct_count + wrong_count)
     
     def get_weight(self) -> float:
-        next_review = self.last_view_date + timedelta(days=self.interval)
-        return max(1.0, (datetime.now() - next_review).total_seconds() / (60 * 60 * 24))
+        elapsed_day = (datetime.now() - self.last_view_date).total_seconds() / (60 * 60 * 24)
+        return elapsed_day / self.interval if (self.interval > 0) else 5.0
     
     def is_enable(self):
         next_review = self.last_view_date + timedelta(days=self.interval)
@@ -105,8 +110,8 @@ class Question(ABC):
 # =========================
 class TextQuestion(Question):
     def __init__(self, item, source_file):
-        question = item.get("question").strip()
-        answer = item.get("answer").strip()
+        question = item.get(QuizField.Quiz.value).strip()
+        answer = item.get(QuizField.Answer.value).strip()
 
         super().__init__(question, source_file)
         self.answer = answer
@@ -126,8 +131,8 @@ class TextQuestion(Question):
 # =========================
 class SingleChoiceQuestion(Question):
     def __init__(self, item, source_file):
-        question = item.get("question").strip()
-        choices = item.get("choices", [])
+        question = item.get(QuizField.Quiz.value).strip()
+        choices = item.get(QuizField.Choices.value, [])
 
         super().__init__(question, source_file)
 
@@ -163,8 +168,8 @@ class SingleChoiceQuestion(Question):
 # =========================
 class MultiChoiceQuestion(Question):
     def __init__(self, item, source_file):
-        question = item.get("question").strip()
-        choices = item.get("choices", [])
+        question = item.get(QuizField.Quiz.value).strip()
+        choices = item.get(QuizField.Choices.value, [])
 
         super().__init__(question, source_file)
 
@@ -237,11 +242,11 @@ class QuestionDataInterface:
                 if len(row) >= 2 and row[0] != "問題":
                     q = row[0].strip()
                     a = row[1].strip()
-                    questions.append(
-                        TextQuestion(
-                            q, a, os.path.basename(csv_file)
-                        )
-                    )
+                    item = {
+                        QuizField.Quiz.value: q,
+                        QuizField.Answer.value: a,
+                    }
+                    questions.append(TextQuestion(item, os.path.basename(csv_file)))
         return questions
 
     def load_json(self, json_file):
@@ -312,6 +317,9 @@ class QuizModel:
     def __init__(self):
         self.question_data = QuestionDataInterface()
         self.question_list: list[Question] = self.question_data.get_questions()
+
+    def get_num_enable_questions(self) -> list[Question]:
+        return len([q for q in self.question_list if q.is_enable() or q.interval == 0])
 
     def get_random_question(self): # TODO 問題の無効化
         weighted_pool = [q for q in self.question_list if q.is_enable()]
@@ -385,6 +393,19 @@ class QuizApp:
         )
         self.result_label.pack(pady=5)
 
+        # ===== メモ入力エリア（記述問題用）=====
+        self.memo_frame = tk.Frame(self.root)
+        self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self.memo_label = tk.Label(self.memo_frame, text="メモ:")
+        self.memo_label.pack(side=tk.LEFT)
+
+        self.memo_entry = tk.Entry(self.memo_frame)
+        self.memo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # 初期状態では非表示
+        self.memo_frame.pack_forget()
+
         # ===== ボタンエリア =====
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
@@ -453,15 +474,18 @@ class QuizApp:
 
         if not question:
             self.question_label.config(text="出題可能な問題がありません。")
+            self.rate_label.config(text="")
+            self.source_label.config(text="")
             return
 
         self.question_label.config(text=question.question)
         self.rate_label.config(
             text=f"直近正答率: {question.get_correct_rate() * 100:.1f} 回答回数: {question.view_count}"
         )
-        self.source_label.config(text=f"出典: {question.source_file}")
+        self.source_label.config(text=f"出典: {question.source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}")
 
         if question.get_type() == "single_choice":
+            self.memo_frame.pack_forget()
             self.correct_button.config(state=tk.DISABLED)
             self.incorrect_button.config(state=tk.DISABLED)
             self.answer_button.config(state=tk.DISABLED)
@@ -485,6 +509,7 @@ class QuizApp:
                 self.choice_buttons.append(rb)
 
         elif question.get_type() == "multi_choice":
+            self.memo_frame.pack_forget()
             self.correct_button.config(state=tk.DISABLED)
             self.incorrect_button.config(state=tk.DISABLED)
             self.answer_button.config(state=tk.NORMAL)
@@ -503,10 +528,14 @@ class QuizApp:
                 self.choice_buttons.append(cb)
                 self.selected_vars.append((var, choice))
 
-        else:
+        else: # 記述問題
             self.correct_button.config(state=tk.NORMAL)
             self.incorrect_button.config(state=tk.NORMAL)
             self.answer_button.config(state=tk.DISABLED)
+
+            # メモ欄表示
+            self.memo_entry.delete(0, tk.END)
+            self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
     def show_answer(self):
         if self.current_question:
