@@ -50,7 +50,17 @@ class Question(ABC):
         if len(self.resent_results) > RECENT_ANSWER_COUNT:
             self.resent_results.pop(0)
 
-        self.interval = (self.interval + 1 if self.is_weak_question() else max(1.0, self.interval * 1.5)) if is_correct else 1
+        if is_correct:
+            interval_a = self.interval + 1
+            interval_b = self.interval * 1.5
+            interval = min(interval_a, interval_b) if self.is_weak_question() else max(interval_a, interval_b)
+            self.interval = max(interval, 1.0)
+        else:
+            if len(self.resent_results) >= 2 and (not self.resent_results[-1] and not self.resent_results[-2]):
+                self.interval = 1.0
+            else:
+                self.interval = max(self.interval / 2, 1.0)
+        print(f"rate: {int(self.get_correct_rate() * 100)}%, interval: {self.interval}, Q: {self.question}")
 
     def get_stats(self):
         return {
@@ -70,7 +80,10 @@ class Question(ABC):
     
     def get_weight(self) -> float:
         elapsed_day = (datetime.now() - self.last_view_date).total_seconds() / (60 * 60 * 24)
-        return elapsed_day / self.interval if (self.interval > 0) else 5.0
+        weight_with_time = elapsed_day / self.interval if (self.interval > 0) else 5.0
+
+        weight_with_correct_rate = 1 / (self.get_correct_rate() + 1.0)
+        return weight_with_time * weight_with_correct_rate
     
     def is_enable(self):
         next_review = self.last_view_date + timedelta(days=self.interval)
