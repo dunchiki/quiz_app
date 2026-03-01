@@ -11,6 +11,7 @@ class QuizApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("学習クイズ")
+        self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
         self.quiz_model = QuizModel()
         self.current_question: Question = None
@@ -238,10 +239,10 @@ class QuizApp:
                 value = rb.cget("text")
 
                 if value == correct_answer:
-                    rb.config(fg="green")
+                    rb.config(disabledforeground="green")
 
                 if value == selected and not is_ok:
-                    rb.config(fg="red")
+                    rb.config(disabledforeground="red")
 
                 rb.config(state=tk.DISABLED)
 
@@ -267,10 +268,10 @@ class QuizApp:
                 text = cb.cget("text")
 
                 if text in correct_answers:
-                    cb.config(fg="green")
+                    cb.config(disabledforeground="green")
 
                 if text in selected and text not in correct_answers:
-                    cb.config(fg="red")
+                    cb.config(disabledforeground="red")
 
                 cb.config(state=tk.DISABLED)
             
@@ -285,7 +286,7 @@ class QuizApp:
             self.result_label.config(text="正解", fg="green")
         else:
             self.result_label.config(
-                text=f"不正解\n正解: {correct_answer}",
+                text=f"不正解\n正解: {correct_answer}" if q_type == "text" else "不正解",
                 fg="red"
             )
 
