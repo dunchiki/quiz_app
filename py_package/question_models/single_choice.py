@@ -25,9 +25,7 @@ class SingleChoiceQuestion(Question):
             else:
                 self.choices.append(choice)
 
-        # 安全対策：*が無かった場合
-        if not self.answer and self.choices:
-            self.answer = self.choices[0]
+        assert self.answer, f"{question} has no answers."
 
     def get_type(self):
         return "single_choice"
