@@ -7,10 +7,9 @@ from py_package.utils.quiz_field import QuizField
 
 class TextQuestion(Question):
     def __init__(self, item, source_file):
-        question = item.get(QuizField.Quiz.value).strip()
         answer = item.get(QuizField.Answer.value).strip()
 
-        super().__init__(question, source_file)
+        super().__init__(item, source_file)
         self.answer = answer
 
     def get_type(self):

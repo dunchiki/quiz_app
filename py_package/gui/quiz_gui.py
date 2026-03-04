@@ -82,6 +82,14 @@ class QuizApp:
         )
         self.show_answer_button.pack(side=tk.LEFT, padx=5)
 
+        self.explanation_button = tk.Button(
+            self.button_frame,
+            text="解説",
+            command=self.show_explanation,
+            state=tk.DISABLED
+        )
+        self.explanation_button.pack(side=tk.LEFT, padx=5)
+
         self.correct_button = tk.Button(
             self.button_frame, text="正解",
             command=lambda: self.manual_answer(True)
@@ -142,6 +150,7 @@ class QuizApp:
             self.question_label.config(text="出題可能な問題がありません。")
             self.rate_label.config(text="")
             self.source_label.config(text="")
+            self.explanation_button.config(state=tk.DISABLED)
             return
 
         self.question_label.config(text=question.question)
@@ -203,6 +212,13 @@ class QuizApp:
             self.memo_entry.delete(0, tk.END)
             self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
+        # 解説ボタン制御
+        explanation = getattr(question, "explanation", None)
+        if explanation:
+            self.explanation_button.config(state=tk.NORMAL)
+        else:
+            self.explanation_button.config(state=tk.DISABLED)
+
     def show_answer(self):
         if self.current_question:
             self.answer_label.config(
@@ -217,6 +233,22 @@ class QuizApp:
 
         self.current_question.update_stats(is_ok)
         self.next_question()
+
+    def show_explanation(self):
+        if not self.current_question:
+            return
+
+        explanation = getattr(self.current_question, "explanation", None)
+        if not explanation:
+            return
+
+        window = tk.Toplevel(self.root)
+        window.title("解説")
+
+        text = tk.Text(window, wrap=tk.WORD)
+        text.insert(tk.END, explanation)
+        text.config(state=tk.DISABLED)
+        text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     def check_answer(self):
         assert self.current_question

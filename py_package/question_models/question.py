@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from quiz_config import RECENT_ANSWER_COUNT, WEEK_QUESTION_RATE_LIMIT
+from py_package.utils.quiz_field import QuizField
 
 class Stats(Enum):
     Count = "count"
@@ -23,8 +24,13 @@ class Question(ABC):
     interval = 0
     last_view_date: datetime = None
 
-    def __init__(self, question, source_file):
-        self.question = question
+    question = None
+    explanation = None
+
+    def __init__(self, item, source_file):
+        self.question = item.get(QuizField.Quiz.value).strip()
+        exp = item.get(QuizField.Explanation.value)
+        if exp: self.explanation = exp.strip()
         self.source_file = source_file
 
     def set_stats(self, stats):
@@ -32,7 +38,7 @@ class Question(ABC):
         default_stats: dict = {
             Stats.Count.value: 0,
             Stats.Disabled.value: False,
-            Stats.ResentResults.value: [False, False, False, False, False],
+            Stats.ResentResults.value: [],
             Stats.Interval.value: 0,
             Stats.LastViewDate.value: datetime.now()
         }
@@ -50,6 +56,7 @@ class Question(ABC):
         if len(self.resent_results) > RECENT_ANSWER_COUNT:
             self.resent_results.pop(0)
 
+        old_interval = self.interval
         if is_correct:
             interval_a = self.interval + 1
             interval_b = self.interval * 1.5
@@ -60,7 +67,7 @@ class Question(ABC):
                 self.interval = 1.0
             else:
                 self.interval = max(self.interval / 2, 1.0)
-        print(f"rate: {int(self.get_correct_rate() * 100)}%, interval: {self.interval}, Q: {self.question}")
+        print(f"rate: {int(self.get_correct_rate() * 100)}%, interval: {old_interval} > {self.interval}, Q: {self.question}")
 
     def get_stats(self):
         return {
@@ -89,7 +96,7 @@ class Question(ABC):
         next_review = self.last_view_date + timedelta(days=self.interval)
         return (not self.disabled) and (datetime.now() > next_review)
 
-    def is_weak_question(self) -> bool: return self.get_correct_rate() < WEEK_QUESTION_RATE_LIMIT
+    def is_weak_question(self) -> bool: return (self.get_correct_rate() < WEEK_QUESTION_RATE_LIMIT) or (self.view_count <= 2)
 
     @abstractmethod
     def get_type(self):
