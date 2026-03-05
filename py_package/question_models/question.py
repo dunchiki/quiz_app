@@ -60,7 +60,7 @@ class Question(ABC):
                 self.interval = 1.0
             else:
                 self.interval = max(self.interval / 2, 1.0)
-        print(f"rate: {int(self.get_correct_rate() * 100)}%, interval: {old_interval} > {self.interval}, Q: {self.question}")
+        print(f"rate: {int(self.get_correct_rate() * 100)}%, interval: {old_interval} → {self.interval}, Q: {self.question}")
 
     def get_stats(self):
         return {

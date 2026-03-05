@@ -19,7 +19,7 @@ class TextQuestion(Question):
         return self.answer
 
     def is_correct(self, user_input):
-        return None
+        return user_input == self.answer
 
     def get_quiz_field(self):
         field = super().get_quiz_field()

@@ -64,9 +64,6 @@ class QuizApp:
         self.memo_frame = tk.Frame(self.root)
         self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        self.memo_label = tk.Label(self.memo_frame, text="メモ:")
-        self.memo_label.pack(side=tk.LEFT)
-
         self.memo_entry = tk.Entry(self.memo_frame)
         self.memo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -79,7 +76,7 @@ class QuizApp:
 
         self.show_answer_button = tk.Button(
             self.button_frame, text="解答表示",
-            command=self.show_answer
+            command=self.on_cleck_show_answer_button
         )
         self.show_answer_button.pack(side=tk.LEFT, padx=5)
 
@@ -104,7 +101,7 @@ class QuizApp:
         self.incorrect_button.pack(side=tk.LEFT, padx=5)
 
         self.answer_button = tk.Button(
-            self.button_frame, text="回答する",
+            self.button_frame, text="回答",
             command=self.check_answer
         )
         self.answer_button.pack(side=tk.LEFT, padx=5)
@@ -114,7 +111,6 @@ class QuizApp:
             command=self.next_question
         )
         self.next_button.pack(side=tk.LEFT, padx=5)
-        self.next_button.config(state=tk.DISABLED)
 
         self.disable_button = tk.Button(
             self.button_frame, text="無効化",
@@ -136,6 +132,10 @@ class QuizApp:
     def on_click_disable_button(self):
         self.quiz_model.set_cq_disabled(True)
 
+    def on_cleck_show_answer_button(self):
+        self._button_mode_self_judge()
+        self.show_answer()
+
     def next_question(self):
         self.set_new_question()
 
@@ -152,13 +152,12 @@ class QuizApp:
         self.answer_label.config(text="")
         self.result_label.config(text="", fg="black")
         self.clear_choices()
-        self.next_button.config(state=tk.DISABLED)
 
         if not self.quiz_model.is_cq_set:
             self.question_label.config(text="出題可能な問題がありません。")
             self.rate_label.config(text="")
             self.source_label.config(text="")
-            self.explanation_button.config(state=tk.DISABLED)
+            self._button_mode_nothing()
             return
 
         self.question_label.config(text=current_question)
@@ -170,16 +169,11 @@ class QuizApp:
 
         if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.DISABLED)
+            self._button_mode_choice_question()
 
             choices = choices.copy()
             random.shuffle(choices)
             self.selected_choice.set("")
-
-            def enable_answer():
-                self.answer_button.config(state=tk.NORMAL)
 
             for choice in choices:
                 rb = tk.Radiobutton(
@@ -187,16 +181,13 @@ class QuizApp:
                     text=choice,
                     variable=self.selected_choice,
                     value=choice,
-                    command=enable_answer
                 )
                 rb.pack(pady=2)
                 self.choice_buttons.append(rb)
 
         elif self.quiz_model.cq_type == "multi_choice":
             self.memo_frame.pack_forget()
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.NORMAL)
+            self._button_mode_choice_question()
 
             self.selected_vars = []
             choices = choices.copy()
@@ -213,19 +204,14 @@ class QuizApp:
                 self.selected_vars.append((var, choice))
 
         else: # 記述問題
-            self.correct_button.config(state=tk.NORMAL)
-            self.incorrect_button.config(state=tk.NORMAL)
-            self.answer_button.config(state=tk.DISABLED)
+            self._button_mode_text_question()
 
             # メモ欄表示
             self.memo_entry.delete(0, tk.END)
             self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
         # 解説ボタン制御
-        if explanation:
-            self.explanation_button.config(state=tk.NORMAL)
-        else:
-            self.explanation_button.config(state=tk.DISABLED)
+        self._button_mode_explaination(explanation)
 
     def show_answer(self):
         if self.quiz_model.is_cq_set:
@@ -235,8 +221,6 @@ class QuizApp:
 
     def manual_answer(self, is_ok):
         if not self.quiz_model.is_cq_set:
-            return
-        if self.quiz_model.cq_type != "text":
             return
 
         self.quiz_model.update_cq_stats(is_ok)
@@ -262,7 +246,6 @@ class QuizApp:
         assert self.quiz_model.is_cq_set
 
         q_type = self.quiz_model.cq_type
-        # assert q_type == "text" # 記述問題はここに来ない
 
         # =========================
         # 単一選択問題
@@ -270,9 +253,8 @@ class QuizApp:
         if q_type == "single_choice":
 
             selected = self.selected_choice.get()
-            assert selected
 
-            is_ok = self.quiz_model.is_correct_answer(selected)
+            is_ok = bool(selected) and self.quiz_model.is_correct_answer(selected)
             correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
             for rb in self.choice_buttons:
@@ -288,8 +270,7 @@ class QuizApp:
 
             self.quiz_model.update_cq_stats(is_ok)
 
-            self.answer_button.config(state=tk.DISABLED)
-            self.next_button.config(state=tk.NORMAL)
+            self._button_mode_fin_answer()
 
         # =========================
         # 複数選択問題
@@ -319,12 +300,22 @@ class QuizApp:
 
             self.quiz_model.update_cq_stats(is_ok)
 
-            self.answer_button.config(state=tk.DISABLED)
-            self.next_button.config(state=tk.NORMAL)
+            self._button_mode_fin_answer()
+
+        if q_type == "text":
+            answer = self.memo_entry.get()
+            is_ok = self.quiz_model.is_correct_answer(answer)
+
+            if is_ok:
+                self.quiz_model.update_cq_stats(is_ok)
+                self._button_mode_fin_answer()
+            else:
+                self.show_answer()
+                self._button_mode_self_judge()
 
         if is_ok:
             self.result_label.config(text="正解", fg="green")
-        else:
+        elif not q_type == "text":
             self.result_label.config(
                 text=f"不正解\n正解: {correct_answer}" if q_type == "text" else "不正解",
                 fg="red"
@@ -336,3 +327,43 @@ class QuizApp:
 
     def start(self):
         self.root.mainloop()
+
+    def _button_mode_text_question(self):
+        self.show_answer_button.config(state=tk.DISABLED)
+        self.correct_button.config(state=tk.NORMAL)
+        self.incorrect_button.config(state=tk.DISABLED)
+        self.answer_button.config(state=tk.NORMAL)
+        self.next_button.config(state=tk.DISABLED)
+
+    def _button_mode_choice_question(self):
+        self.show_answer_button.config(state=tk.NORMAL)
+        self.correct_button.config(state=tk.DISABLED)
+        self.incorrect_button.config(state=tk.DISABLED)
+        self.answer_button.config(state=tk.NORMAL)
+        self.next_button.config(state=tk.DISABLED)
+
+    def _button_mode_fin_answer(self):
+        self.show_answer_button.config(state=tk.DISABLED)
+        self.correct_button.config(state=tk.DISABLED)
+        self.incorrect_button.config(state=tk.DISABLED)
+        self.answer_button.config(state=tk.DISABLED)
+        self.next_button.config(state=tk.NORMAL)
+
+    def _button_mode_self_judge(self):
+        self.show_answer_button.config(state=tk.DISABLED)
+        self.correct_button.config(state=tk.NORMAL)
+        self.incorrect_button.config(state=tk.NORMAL)
+        self.answer_button.config(state=tk.DISABLED)
+        self.next_button.config(state=tk.DISABLED)
+
+    def _button_mode_nothing(self):
+        self.show_answer_button.config(state=tk.DISABLED)
+        self.correct_button.config(state=tk.DISABLED)
+        self.incorrect_button.config(state=tk.DISABLED)
+        self.answer_button.config(state=tk.DISABLED)
+        self.next_button.config(state=tk.DISABLED)
+
+        self.explanation_button.config(state=tk.DISABLED)
+
+    def _button_mode_explaination(self, is_enabled):
+        self.explanation_button.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
