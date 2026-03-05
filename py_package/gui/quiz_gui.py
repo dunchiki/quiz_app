@@ -165,7 +165,8 @@ class QuizApp:
         self.rate_label.config(
             text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}"
         )
-        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}")
+        
+        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
 
         if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()

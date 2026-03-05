@@ -2,6 +2,7 @@
 # クイズモデル
 # =========================
 
+from datetime import datetime
 import random
 
 from py_package.data_interface.quiz_data import QuestionDataInterface
@@ -15,6 +16,9 @@ class QuizModel:
 
     def get_num_enable_questions(self) -> list[Question]:
         return len([q for q in self.question_list if q.is_enable() or q.interval == 0])
+    
+    def get_num_today_answer_questions(self) -> int:
+        return len([q for q in self.question_list if q.last_view_date.date() == datetime.now().date()])
 
     def set_random_question(self):
         not_answered_questions = [q for q in self.question_list if q.interval == 0]
