@@ -54,7 +54,7 @@ class QuestionDataInterface:
                     q = row[0].strip()
                     a = row[1].strip()
                     item = {
-                        QuizField.Quiz.value: q,
+                        QuizField.Question.value: q,
                         QuizField.Answer.value: a,
                     }
                     questions.append(TextQuestion(item, os.path.basename(csv_file)))

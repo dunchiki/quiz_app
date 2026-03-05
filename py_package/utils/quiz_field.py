@@ -2,6 +2,6 @@ from enum import Enum
 
 class QuizField(Enum):
     Answer = "answer"
-    Quiz = "question"
+    Question = "question"
     Choices = "choices"
     Explanation = "explanation"

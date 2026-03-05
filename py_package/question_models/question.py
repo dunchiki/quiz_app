@@ -21,7 +21,7 @@ class Question(ABC):
     explanation = None
 
     def __init__(self, item, source_file):
-        self.question = item.get(QuizField.Quiz.value).strip()
+        self.question = item.get(QuizField.Question.value).strip()
         exp = item.get(QuizField.Explanation.value)
         if exp: self.explanation = exp.strip()
         self.source_file = source_file
@@ -73,7 +73,7 @@ class Question(ABC):
 
     def get_quiz_field(self):
         return {
-            QuizField.Quiz.value: self.question,
+            QuizField.Question.value: self.question,
             QuizField.Explanation.value: self.explanation,
         }
 

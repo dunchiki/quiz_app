@@ -144,7 +144,7 @@ class QuizApp:
         self.quiz_model.set_random_question()
         self.current_question = self.quiz_model._current_question
         quiz_field = self.quiz_model.cq_quiz_field
-        current_question = quiz_field[QuizField.Quiz.value]
+        current_question = quiz_field[QuizField.Question.value]
         choices = quiz_field.get(QuizField.Choices.value)
         explanation = quiz_field[QuizField.Explanation.value]
 
