@@ -23,7 +23,11 @@ class QuizModel:
         self.question_data.save_stats()
 
     @property
+    def cq_correct_rate(self) -> float: return self._current_question.get_correct_rate()
+    @property
     def cq_quiz_field(self) -> dict: return self._current_question.get_quiz_field()
+    @property
+    def cq_source_file(self) -> str: return self._current_question.source_file
     @property
     def cq_stats(self) -> dict: return self._current_question.get_stats()
     @property

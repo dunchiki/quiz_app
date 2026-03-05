@@ -6,6 +6,8 @@ import random
 
 from py_package.question_models.question import Question
 from py_package.set_question_models.set_question_model import QuizModel
+from py_package.utils.quiz_field import QuizField
+from py_package.utils.stats import Stats
 
 class QuizApp:
     def __init__(self):
@@ -136,43 +138,51 @@ class QuizApp:
         self.current_question.disabled = True
 
     def next_question(self):
-        question = self.quiz_model._get_random_question()
-        self.set_new_question(question)
+        self.set_new_question()
 
-    def set_new_question(self, question: Question):
-        self.current_question = question
+    def set_new_question(self):
+        self.quiz_model.set_random_question()
+        self.current_question = self.quiz_model._current_question
+        quiz_field = self.quiz_model.cq_quiz_field
+        current_question = quiz_field[QuizField.Quiz.value]
+        choices = quiz_field.get(QuizField.Choices.value)
+        explanation = quiz_field[QuizField.Explanation.value]
+
+        stats = self.quiz_model.cq_stats
+        count = stats[Stats.Count.value]
+
         self.answer_label.config(text="")
         self.result_label.config(text="", fg="black")
         self.clear_choices()
         self.next_button.config(state=tk.DISABLED)
 
-        if not question:
+        if not self.quiz_model.is_cq_set:
             self.question_label.config(text="出題可能な問題がありません。")
             self.rate_label.config(text="")
             self.source_label.config(text="")
             self.explanation_button.config(state=tk.DISABLED)
             return
 
-        self.question_label.config(text=question.question)
+        self.question_label.config(text=current_question)
         self.rate_label.config(
-            text=f"直近正答率: {question.get_correct_rate() * 100:.1f} 回答回数: {question.view_count}"
+            text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}"
         )
-        self.source_label.config(text=f"出典: {question.source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}")
+        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}")
 
-        if question.get_type() == "single_choice":
+        if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()
             self.correct_button.config(state=tk.DISABLED)
             self.incorrect_button.config(state=tk.DISABLED)
             self.answer_button.config(state=tk.DISABLED)
 
-            choices = question.choices.copy()
+            choices = choices.copy()
             random.shuffle(choices)
             self.selected_choice.set("")
 
             def enable_answer():
                 self.answer_button.config(state=tk.NORMAL)
 
-            for choice in question.choices:
+            for choice in choices:
                 rb = tk.Radiobutton(
                     self.root,
                     text=choice,
@@ -183,14 +193,14 @@ class QuizApp:
                 rb.pack(pady=2)
                 self.choice_buttons.append(rb)
 
-        elif question.get_type() == "multi_choice":
+        elif self.quiz_model.cq_type == "multi_choice":
             self.memo_frame.pack_forget()
             self.correct_button.config(state=tk.DISABLED)
             self.incorrect_button.config(state=tk.DISABLED)
             self.answer_button.config(state=tk.NORMAL)
 
             self.selected_vars = []
-            choices = question.choices.copy()
+            choices = choices.copy()
             random.shuffle(choices)
 
             for choice in choices:
@@ -213,32 +223,31 @@ class QuizApp:
             self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
         # 解説ボタン制御
-        explanation = getattr(question, "explanation", None)
         if explanation:
             self.explanation_button.config(state=tk.NORMAL)
         else:
             self.explanation_button.config(state=tk.DISABLED)
 
     def show_answer(self):
-        if self.current_question:
+        if self.quiz_model.is_cq_set:
             self.answer_label.config(
-                text=self.current_question.get_correct_answer()
+                text=self.quiz_model.cq_quiz_field[QuizField.Answer.value]
             )
 
     def manual_answer(self, is_ok):
-        if not self.current_question:
+        if not self.quiz_model.is_cq_set:
             return
-        if self.current_question.get_type() != "text":
+        if self.quiz_model.cq_type != "text":
             return
 
         self.current_question.update_stats(is_ok)
         self.next_question()
 
     def show_explanation(self):
-        if not self.current_question:
+        if not self.quiz_model.is_cq_set:
             return
 
-        explanation = getattr(self.current_question, "explanation", None)
+        explanation = self.quiz_model.cq_quiz_field[QuizField.Explanation.value]
         if not explanation:
             return
 
@@ -251,9 +260,9 @@ class QuizApp:
         text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     def check_answer(self):
-        assert self.current_question
+        assert self.quiz_model.is_cq_set
 
-        q_type = self.current_question.get_type()
+        q_type = self.quiz_model.cq_type
         # assert q_type == "text" # 記述問題はここに来ない
 
         # =========================
@@ -265,7 +274,7 @@ class QuizApp:
             assert selected
 
             is_ok = self.current_question.is_correct(selected)
-            correct_answer = self.current_question.get_correct_answer()
+            correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
             for rb in self.choice_buttons:
                 value = rb.cget("text")
@@ -294,7 +303,7 @@ class QuizApp:
             ]
 
             is_ok = self.current_question.is_correct(selected)
-            correct_answers = self.current_question.correct_answers
+            correct_answers = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
             for cb in self.choice_buttons:
                 text = cb.cget("text")
