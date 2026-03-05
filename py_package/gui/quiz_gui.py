@@ -136,7 +136,7 @@ class QuizApp:
         self.current_question.disabled = True
 
     def next_question(self):
-        question = self.quiz_model.get_random_question()
+        question = self.quiz_model._get_random_question()
         self.set_new_question(question)
 
     def set_new_question(self, question: Question):
