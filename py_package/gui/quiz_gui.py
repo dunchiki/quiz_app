@@ -16,7 +16,6 @@ class QuizApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
         self.quiz_model = QuizModel()
-        self.current_question: Question = None
 
         self.selected_choice = tk.StringVar()
         self.choice_buttons = []
@@ -135,14 +134,13 @@ class QuizApp:
         self.choice_buttons.clear()
 
     def on_click_disable_button(self):
-        self.current_question.disabled = True
+        self.quiz_model.set_cq_disabled(True)
 
     def next_question(self):
         self.set_new_question()
 
     def set_new_question(self):
         self.quiz_model.set_random_question()
-        self.current_question = self.quiz_model._current_question
         quiz_field = self.quiz_model.cq_quiz_field
         current_question = quiz_field[QuizField.Question.value]
         choices = quiz_field.get(QuizField.Choices.value)
@@ -240,7 +238,7 @@ class QuizApp:
         if self.quiz_model.cq_type != "text":
             return
 
-        self.current_question.update_stats(is_ok)
+        self.quiz_model.update_cq_stats(is_ok)
         self.next_question()
 
     def show_explanation(self):
@@ -273,7 +271,7 @@ class QuizApp:
             selected = self.selected_choice.get()
             assert selected
 
-            is_ok = self.current_question.is_correct(selected)
+            is_ok = self.quiz_model.is_correct_answer(selected)
             correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
             for rb in self.choice_buttons:
@@ -287,7 +285,7 @@ class QuizApp:
 
                 rb.config(state=tk.DISABLED)
 
-            self.current_question.update_stats(is_ok)
+            self.quiz_model.update_cq_stats(is_ok)
 
             self.answer_button.config(state=tk.DISABLED)
             self.next_button.config(state=tk.NORMAL)
@@ -302,7 +300,7 @@ class QuizApp:
                 if var.get()
             ]
 
-            is_ok = self.current_question.is_correct(selected)
+            is_ok = self.quiz_model.is_correct_answer(selected)
             correct_answers = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
             for cb in self.choice_buttons:
@@ -318,7 +316,7 @@ class QuizApp:
             
             correct_answer = ', '.join(correct_answers)
 
-            self.current_question.update_stats(is_ok)
+            self.quiz_model.update_cq_stats(is_ok)
 
             self.answer_button.config(state=tk.DISABLED)
             self.next_button.config(state=tk.NORMAL)

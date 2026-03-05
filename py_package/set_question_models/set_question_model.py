@@ -17,25 +17,6 @@ class QuizModel:
         return len([q for q in self.question_list if q.is_enable() or q.interval == 0])
 
     def set_random_question(self):
-        self._current_question = self._get_random_question()
-
-    def save(self):
-        self.question_data.save_stats()
-
-    @property
-    def cq_correct_rate(self) -> float: return self._current_question.get_correct_rate()
-    @property
-    def cq_quiz_field(self) -> dict: return self._current_question.get_quiz_field()
-    @property
-    def cq_source_file(self) -> str: return self._current_question.source_file
-    @property
-    def cq_stats(self) -> dict: return self._current_question.get_stats()
-    @property
-    def cq_type(self) -> str: return self._current_question.get_type()
-    @property
-    def is_cq_set(self) -> bool: return not self._current_question is None
-    
-    def _get_random_question(self):
         not_answered_questions = [q for q in self.question_list if q.interval == 0]
         if not_answered_questions:
             weighted_pool = not_answered_questions
@@ -51,4 +32,30 @@ class QuizModel:
         )[0]
 
         assert not result.disabled
-        return result
+        self._current_question = result
+
+    def save(self):
+        self.question_data.save_stats()
+
+    ### current_question 操作
+    def is_correct_answer(self, answer) -> bool:
+        return self._current_question.is_correct(answer)
+
+    def set_cq_disabled(self, is_disabled = True):
+        self._current_question.disabled = is_disabled
+
+    def update_cq_stats(self, is_ok: bool):
+        self._current_question.update_stats(is_ok)
+
+    @property
+    def cq_correct_rate(self) -> float: return self._current_question.get_correct_rate()
+    @property
+    def cq_quiz_field(self) -> dict: return self._current_question.get_quiz_field()
+    @property
+    def cq_source_file(self) -> str: return self._current_question.source_file
+    @property
+    def cq_stats(self) -> dict: return self._current_question.get_stats()
+    @property
+    def cq_type(self) -> str: return self._current_question.get_type()
+    @property
+    def is_cq_set(self) -> bool: return not self._current_question is None
