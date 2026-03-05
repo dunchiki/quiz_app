@@ -23,5 +23,5 @@ class TextQuestion(Question):
 
     def get_quiz_field(self):
         field = super().get_quiz_field()
-        field[QuizField.Answer] = self.answer
+        field[QuizField.Answer.value] = self.answer
         return field
