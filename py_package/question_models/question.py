@@ -4,17 +4,10 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from enum import Enum
 
 from quiz_config import RECENT_ANSWER_COUNT, WEEK_QUESTION_RATE_LIMIT
 from py_package.utils.quiz_field import QuizField
-
-class Stats(Enum):
-    Count = "count"
-    Disabled = "disabled"
-    ResentResults = "resent_results"
-    Interval = "Interval"
-    LastViewDate = "last_view_date"
+from py_package.utils.stats import Stats
 
 # 問題固有の処理はできるだけこれを継承したクラス内に実装する
 class Question(ABC):
