@@ -36,3 +36,9 @@ class MultiChoiceQuestion(Question):
 
     def is_correct(self, user_input_set):
         return set(user_input_set) == self.correct_answers
+
+    def get_quiz_field(self):
+        field = super().get_quiz_field()
+        field[QuizField.Choices.value] = self.choices
+        field[QuizField.Answer.value] = self.correct_answers
+        return field

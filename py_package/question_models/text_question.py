@@ -20,3 +20,8 @@ class TextQuestion(Question):
 
     def is_correct(self, user_input):
         return None
+
+    def get_quiz_field(self):
+        field = super().get_quiz_field()
+        field[QuizField.Answer] = self.answer
+        return field

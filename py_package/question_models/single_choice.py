@@ -34,3 +34,9 @@ class SingleChoiceQuestion(Question):
 
     def is_correct(self, user_input):
         return user_input == self.answer
+
+    def get_quiz_field(self):
+        field = super().get_quiz_field()
+        field[QuizField.Choices.value] = self.choices
+        field[QuizField.Answer.value] = self.answer
+        return field

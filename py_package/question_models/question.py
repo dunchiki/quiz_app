@@ -71,6 +71,12 @@ class Question(ABC):
             Stats.LastViewDate.value: self.last_view_date.isoformat(timespec="seconds")
         }
 
+    def get_quiz_field(self):
+        return {
+            QuizField.Quiz.value: self.question,
+            QuizField.Explanation.value: self.explanation,
+        }
+
     def get_correct_rate(self) -> float:
         if len(self.resent_results) == 0:
             return 0.0
