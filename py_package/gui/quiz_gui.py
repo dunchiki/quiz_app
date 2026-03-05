@@ -114,7 +114,7 @@ class QuizApp:
 
         self.disable_button = tk.Button(
             self.button_frame, text="無効化",
-            command=self.on_click_disable_button
+            command=lambda: self.quiz_model.set_cq_disabled(True)
         )
         self.disable_button.pack(side=tk.LEFT, padx=5)
 
@@ -128,9 +128,6 @@ class QuizApp:
         for btn in self.choice_buttons:
             btn.destroy()
         self.choice_buttons.clear()
-
-    def on_click_disable_button(self):
-        self.quiz_model.set_cq_disabled(True)
 
     def on_cleck_show_answer_button(self):
         self._button_mode_self_judge()
