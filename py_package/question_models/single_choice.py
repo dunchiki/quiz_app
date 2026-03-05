@@ -24,7 +24,7 @@ class SingleChoiceQuestion(Question):
             else:
                 self.choices.append(choice)
 
-        assert self.answer, f"{question} has no answers."
+        assert self.answer, f"{self.question} has no answers."
 
     def get_type(self):
         return "single_choice"
