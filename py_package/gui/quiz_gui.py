@@ -140,20 +140,15 @@ class QuizApp:
         explanation = quiz_field[QuizField.Explanation.value]
 
         self._set_choice_field(self.quiz_model.cq_type, choices)
+        self._set_memo_field(self.quiz_model.cq_type == "text")
         if self.quiz_model.cq_type == "single_choice":
-            self.memo_frame.pack_forget()
             self._button_mode_choice_question()
 
         elif self.quiz_model.cq_type == "multi_choice":
-            self.memo_frame.pack_forget()
             self._button_mode_choice_question()
 
         elif self.quiz_model.cq_type == "text": # 記述問題
             self._button_mode_text_question()
-
-            # メモ欄表示
-            self.memo_entry.delete(0, tk.END)
-            self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
 
         # 解説ボタン制御
         self._button_mode_explaination(explanation)
@@ -295,6 +290,13 @@ class QuizApp:
 
     def start(self):
         self.root.mainloop()
+
+    def _set_memo_field(self, is_visible):
+        if is_visible:
+            self.memo_entry.delete(0, tk.END)
+            self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
+        else:
+            self.memo_frame.pack_forget()
 
     def _reset_result_field(self):
         self.result_label.config(text="", fg="black")
