@@ -28,6 +28,8 @@ class QuizApp:
         self.construct_gui()
         self.next_question()
 
+        self.root.bind("<Control-s>", lambda event: self.quiz_model.save())
+
     def construct_gui(self):
 
         # ===== コンテンツエリア =====
