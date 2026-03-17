@@ -31,6 +31,7 @@ class QuizModel:
             weighted_pool = [q for q in self.question_list if q.is_enable()]
 
         if not weighted_pool:
+            self._current_question = None
             return None
 
         result = random.choices(
