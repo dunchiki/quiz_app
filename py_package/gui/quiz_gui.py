@@ -4,12 +4,17 @@
 import tkinter as tk
 import random
 
-from py_package.question_models.question import Question
 from py_package.set_question_models.set_question_model import QuizModel
 from py_package.utils.quiz_field import QuizField
 from py_package.utils.stats import Stats
 
 class QuizApp:
+    question_font = ('Arial', 16)
+    result_font = ('Arial', 14, 'bold')
+    answer_font = ('Arial', 14)
+    stats_font = ('Arial', 12)
+    info_font = ('Arial', 10)
+
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("学習クイズ")
@@ -30,33 +35,24 @@ class QuizApp:
         self.content_frame.pack(fill=tk.BOTH, expand=True)
 
         self.question_label = tk.Label(
-            self.content_frame, font=('Arial', 16),
+            self.content_frame, font=self.question_font,
             wraplength=600, justify='left'
         )
         self.question_label.pack(pady=20)
 
-        self.rate_label = tk.Label(self.content_frame, font=('Arial', 12))
-        self.rate_label.pack()
+        self.stats_label = tk.Label(self.content_frame, font=self.stats_font)
+        self.stats_label.pack()
 
         self.source_label = tk.Label(
             self.content_frame,
-            font=('Arial', 10),
+            font=self.info_font,
             fg="gray"
         )
         self.source_label.pack()
 
-        self.answer_label = tk.Label(
-            self.content_frame,
-            font=('Arial', 14),
-            fg="blue",
-            wraplength=600,
-            justify='left'
-        )
-        self.answer_label.pack(pady=10)
-
         self.result_label = tk.Label(
             self.content_frame,
-            font=('Arial', 14, 'bold')
+            font=self.result_font
         )
         self.result_label.pack(pady=5)
 
@@ -73,12 +69,6 @@ class QuizApp:
         # ===== ボタンエリア =====
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
-
-        self.show_answer_button = tk.Button(
-            self.button_frame, text="解答表示",
-            command=self.on_cleck_show_answer_button
-        )
-        self.show_answer_button.pack(side=tk.LEFT, padx=5)
 
         self.explanation_button = tk.Button(
             self.button_frame,
@@ -129,23 +119,18 @@ class QuizApp:
             btn.destroy()
         self.choice_buttons.clear()
 
-    def on_cleck_show_answer_button(self):
-        self._button_mode_self_judge()
-        self.show_answer()
-
     def next_question(self):
         self.set_new_question()
 
     def set_new_question(self):
         self.quiz_model.set_random_question()
 
-        self.answer_label.config(text="")
         self.result_label.config(text="", fg="black")
         self.clear_choices()
 
         if not self.quiz_model.is_cq_set:
             self.question_label.config(text="出題可能な問題がありません。")
-            self.rate_label.config(text="")
+            self.stats_label.config(text="")
             self.source_label.config(text="")
             self._button_mode_nothing()
             return
@@ -159,7 +144,7 @@ class QuizApp:
         count = stats[Stats.Count.value]
 
         self.question_label.config(text=current_question)
-        self.rate_label.config(
+        self.stats_label.config(
             text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}"
         )
         
@@ -213,12 +198,6 @@ class QuizApp:
 
         # 解説ボタン制御
         self._button_mode_explaination(explanation)
-
-    def show_answer(self):
-        if self.quiz_model.is_cq_set:
-            self.answer_label.config(
-                text=self.quiz_model.cq_quiz_field[QuizField.Answer.value]
-            )
 
     def manual_answer(self, is_ok):
         if not self.quiz_model.is_cq_set:
@@ -311,17 +290,15 @@ class QuizApp:
                 self.quiz_model.update_cq_stats(is_ok)
                 self._button_mode_fin_answer()
             else:
-                self.show_answer()
                 self._button_mode_self_judge()
                 correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
         if is_ok:
-            self.result_label.config(text="正解", fg="green")
+            self.result_label.config(text="正解", fg="green", font=self.result_font)
+        elif q_type == "text":
+            self.result_label.config(text="正解: " + correct_answer, fg="blue", font=self.answer_font)
         else:
-            self.result_label.config(
-                text=f"不正解\n正解: {correct_answer}" if q_type == "text" else "不正解",
-                fg="red"
-            )
+            self.result_label.config(text="不正解", fg="red", font=self.result_font)
 
     def on_exit(self):
         self.quiz_model.save()
@@ -331,35 +308,30 @@ class QuizApp:
         self.root.mainloop()
 
     def _button_mode_text_question(self):
-        self.show_answer_button.config(state=tk.DISABLED)
         self.correct_button.config(state=tk.DISABLED)
         self.incorrect_button.config(state=tk.DISABLED)
         self.answer_button.config(state=tk.NORMAL)
         self.next_button.config(state=tk.DISABLED)
 
     def _button_mode_choice_question(self):
-        self.show_answer_button.config(state=tk.NORMAL)
         self.correct_button.config(state=tk.DISABLED)
         self.incorrect_button.config(state=tk.DISABLED)
         self.answer_button.config(state=tk.NORMAL)
         self.next_button.config(state=tk.DISABLED)
 
     def _button_mode_fin_answer(self):
-        self.show_answer_button.config(state=tk.DISABLED)
         self.correct_button.config(state=tk.DISABLED)
         self.incorrect_button.config(state=tk.DISABLED)
         self.answer_button.config(state=tk.DISABLED)
         self.next_button.config(state=tk.NORMAL)
 
     def _button_mode_self_judge(self):
-        self.show_answer_button.config(state=tk.DISABLED)
         self.correct_button.config(state=tk.NORMAL)
         self.incorrect_button.config(state=tk.NORMAL)
         self.answer_button.config(state=tk.DISABLED)
         self.next_button.config(state=tk.DISABLED)
 
     def _button_mode_nothing(self):
-        self.show_answer_button.config(state=tk.DISABLED)
         self.correct_button.config(state=tk.DISABLED)
         self.incorrect_button.config(state=tk.DISABLED)
         self.answer_button.config(state=tk.DISABLED)
