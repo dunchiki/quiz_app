@@ -1,12 +1,20 @@
 # =========================
 # GUI
 # =========================
+from enum import Enum
 import tkinter as tk
 import random
 
 from py_package.set_question_models.set_question_model import QuizModel
 from py_package.utils.quiz_field import QuizField
 from py_package.utils.stats import Stats
+
+class ButtonMode(Enum):
+    NOTHING = 0
+    CHOICE_QUESTION = 1
+    TEXT_QUESTION = 2
+    FIN_ANSWER = 3
+    SELF_JUDGE = 4
 
 class QuizApp:
     question_font = ('Arial', 16)
@@ -132,26 +140,20 @@ class QuizApp:
 
         self._set_question_field()
         if not self.quiz_model.is_cq_set:
-            self._button_mode_nothing()
+            self._set_button_mode_with_expectation(ButtonMode.NOTHING, False)
             return
 
         quiz_field = self.quiz_model.cq_quiz_field
-        choices = quiz_field.get(QuizField.Choices.value)
-        explanation = quiz_field[QuizField.Explanation.value]
 
+        choices = quiz_field.get(QuizField.Choices.value)
         self._set_choice_field(self.quiz_model.cq_type, choices)
         self._set_memo_field(self.quiz_model.cq_type == "text")
         if self.quiz_model.cq_type == "single_choice":
-            self._button_mode_choice_question()
-
+            self._set_button_mode_with_expectation(ButtonMode.CHOICE_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
         elif self.quiz_model.cq_type == "multi_choice":
-            self._button_mode_choice_question()
-
+            self._set_button_mode_with_expectation(ButtonMode.CHOICE_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
         elif self.quiz_model.cq_type == "text": # 記述問題
-            self._button_mode_text_question()
-
-        # 解説ボタン制御
-        self._button_mode_explaination(explanation)
+            self._set_button_mode_with_expectation(ButtonMode.TEXT_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
 
     def open_settings(self):
         """ソース設定ウィンドウを開く。"""
@@ -238,7 +240,7 @@ class QuizApp:
 
             self.quiz_model.update_cq_stats(is_ok)
 
-            self._button_mode_fin_answer()
+            self._set_button_mode(ButtonMode.FIN_ANSWER)
 
         # =========================
         # 複数選択問題
@@ -268,7 +270,7 @@ class QuizApp:
 
             self.quiz_model.update_cq_stats(is_ok)
 
-            self._button_mode_fin_answer()
+            self._set_button_mode(ButtonMode.FIN_ANSWER)
 
         if q_type == "text":
             answer = self.memo_entry.get()
@@ -276,10 +278,10 @@ class QuizApp:
 
             if is_ok:
                 self.quiz_model.update_cq_stats(is_ok)
-                self._button_mode_fin_answer()
+                self._set_button_mode(ButtonMode.FIN_ANSWER)
                 correct_answer = None
             else:
-                self._button_mode_self_judge()
+                self._set_button_mode(ButtonMode.SELF_JUDGE)
                 correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
         self._set_result_field(is_ok, correct_answer)
@@ -361,37 +363,33 @@ class QuizApp:
                 self.choice_buttons.append(cb)
                 self.selected_vars.append((var, choice))
 
-    def _button_mode_text_question(self):
-        self.correct_button.config(state=tk.DISABLED)
-        self.incorrect_button.config(state=tk.DISABLED)
-        self.answer_button.config(state=tk.NORMAL)
-        self.next_button.config(state=tk.DISABLED)
+    def _set_button_mode(self, mode: ButtonMode):
+        if mode == ButtonMode.TEXT_QUESTION:
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.NORMAL)
+            self.next_button.config(state=tk.DISABLED)
+        elif mode == ButtonMode.CHOICE_QUESTION:
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.NORMAL)
+            self.next_button.config(state=tk.DISABLED)
+        elif mode == ButtonMode.FIN_ANSWER:
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.DISABLED)
+            self.next_button.config(state=tk.NORMAL)
+        elif mode == ButtonMode.SELF_JUDGE:
+            self.correct_button.config(state=tk.NORMAL)
+            self.incorrect_button.config(state=tk.NORMAL)
+            self.answer_button.config(state=tk.DISABLED)
+            self.next_button.config(state=tk.DISABLED)
+        else:
+            self.correct_button.config(state=tk.DISABLED)
+            self.incorrect_button.config(state=tk.DISABLED)
+            self.answer_button.config(state=tk.DISABLED)
+            self.next_button.config(state=tk.DISABLED)
 
-    def _button_mode_choice_question(self):
-        self.correct_button.config(state=tk.DISABLED)
-        self.incorrect_button.config(state=tk.DISABLED)
-        self.answer_button.config(state=tk.NORMAL)
-        self.next_button.config(state=tk.DISABLED)
-
-    def _button_mode_fin_answer(self):
-        self.correct_button.config(state=tk.DISABLED)
-        self.incorrect_button.config(state=tk.DISABLED)
-        self.answer_button.config(state=tk.DISABLED)
-        self.next_button.config(state=tk.NORMAL)
-
-    def _button_mode_self_judge(self):
-        self.correct_button.config(state=tk.NORMAL)
-        self.incorrect_button.config(state=tk.NORMAL)
-        self.answer_button.config(state=tk.DISABLED)
-        self.next_button.config(state=tk.DISABLED)
-
-    def _button_mode_nothing(self):
-        self.correct_button.config(state=tk.DISABLED)
-        self.incorrect_button.config(state=tk.DISABLED)
-        self.answer_button.config(state=tk.DISABLED)
-        self.next_button.config(state=tk.DISABLED)
-
-        self.explanation_button.config(state=tk.DISABLED)
-
-    def _button_mode_explaination(self, is_enabled):
-        self.explanation_button.config(state=tk.NORMAL if is_enabled else tk.DISABLED)
+    def _set_button_mode_with_expectation(self, mode: ButtonMode, has_explanation: bool):
+        self._set_button_mode(mode)
+        self.explanation_button.config(state=tk.NORMAL if has_explanation else tk.DISABLED)
