@@ -109,10 +109,15 @@ class QuestionDataInterface:
             stat_file = self.__file_to_stat_file(file_path)
 
             score_sum = 0
+            score_min = 1.0
+            count_answer = 0
             c = 0
             for q in questions:
                 if not q.disabled:
                     score_sum += q.get_correct_rate()
+                    if q.get_correct_rate() < score_min:
+                        score_min = q.get_correct_rate()
+                    count_answer += q.view_count
                     c += 1
             
             stat = {
@@ -121,7 +126,7 @@ class QuestionDataInterface:
             if c > 0:
                 score_avg = score_sum / c
                 stat["score_avg"] = score_avg
-                print(f"{questions[0].source_file} : {score_avg * 100:.1f}")
+                print(f"平均正答率 {score_avg * 100:5.1f}, 最低正答率 {score_min * 100:5.1f}, 平均回答数 {count_answer / c:4.1f}, {questions[0].source_file}")
 
             with open(stat_file, 'w', encoding='utf-8') as f:
                 json.dump(stat, f, ensure_ascii=False, indent=2)
