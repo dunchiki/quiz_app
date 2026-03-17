@@ -37,7 +37,7 @@ class Question(ABC):
         }
         self.view_count = int(stats[Stats.Count.value]) if Stats.Count.value in stats else default_stats[Stats.Count.value]
         self.disabled = bool(stats[Stats.Disabled.value]) if Stats.Disabled.value in stats else default_stats[Stats.Disabled.value]
-        self.resent_results = list[bool](stats[Stats.ResentResults.value]) if Stats.ResentResults.value in stats else default_stats[Stats.ResentResults.value]
+        self.resent_results = list(stats[Stats.ResentResults.value]) if Stats.ResentResults.value in stats else default_stats[Stats.ResentResults.value]
         self.interval = float(stats[Stats.Interval.value]) if Stats.Interval.value in stats else default_stats[Stats.Interval.value]
         self.last_view_date = datetime.fromisoformat(stats[Stats.LastViewDate.value]) if Stats.LastViewDate.value in stats else default_stats[Stats.LastViewDate.value]
 

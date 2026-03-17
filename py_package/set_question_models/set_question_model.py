@@ -14,7 +14,7 @@ class QuizModel:
         self.question_list: list[Question] = self.question_data.get_questions()
         self._current_question: Question = None
 
-    def get_num_enable_questions(self) -> list[Question]:
+    def get_num_enable_questions(self) -> int:
         return len([q for q in self.question_list if q.is_enable() or q.interval == 0])
     
     def get_num_today_answer_questions(self) -> int:
