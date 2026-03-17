@@ -122,11 +122,6 @@ class QuizApp:
         )
         self.exit_button.pack(side=tk.RIGHT, padx=5)
 
-    def clear_choices(self):
-        for btn in self.choice_buttons:
-            btn.destroy()
-        self.choice_buttons.clear()
-
     def next_question(self):
         self.set_new_question()
 
@@ -134,7 +129,6 @@ class QuizApp:
         self.quiz_model.set_random_question()
 
         self._reset_result_field()
-        self.clear_choices()
 
         self._set_question_field()
         if not self.quiz_model.is_cq_set:
@@ -145,43 +139,16 @@ class QuizApp:
         choices = quiz_field.get(QuizField.Choices.value)
         explanation = quiz_field[QuizField.Explanation.value]
 
+        self._set_choice_field(self.quiz_model.cq_type, choices)
         if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()
             self._button_mode_choice_question()
-
-            choices = choices.copy()
-            random.shuffle(choices)
-            self.selected_choice.set("")
-
-            for choice in choices:
-                rb = tk.Radiobutton(
-                    self.root,
-                    text=choice,
-                    variable=self.selected_choice,
-                    value=choice,
-                )
-                rb.pack(pady=2)
-                self.choice_buttons.append(rb)
 
         elif self.quiz_model.cq_type == "multi_choice":
             self.memo_frame.pack_forget()
             self._button_mode_choice_question()
 
-            self.selected_vars = []
-            choices = choices.copy()
-            random.shuffle(choices)
-
-            for choice in choices:
-                var = tk.BooleanVar()
-                cb = tk.Checkbutton(
-                    text=choice,
-                    variable=var
-                )
-                cb.pack(anchor='center')
-                self.choice_buttons.append(cb)
-                self.selected_vars.append((var, choice))
-
-        else: # 記述問題
+        elif self.quiz_model.cq_type == "text": # 記述問題
             self._button_mode_text_question()
 
             # メモ欄表示
@@ -359,6 +326,36 @@ class QuizApp:
             num_enable = self.quiz_model.get_num_enable_questions()
             num_questoins = f"{num_enable}" if num_not_answered == 0 else f"{num_enable}({num_not_answered})"
             self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {num_questoins}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
+
+    def _set_choice_field(self, q_type, choices: list[str]):
+        for btn in self.choice_buttons:
+            btn.destroy()
+        self.choice_buttons.clear()
+
+        if q_type == "single_choice":
+            self.selected_choice.set("")
+
+            for choice in choices:
+                rb = tk.Radiobutton(
+                    self.root,
+                    text=choice,
+                    variable=self.selected_choice,
+                    value=choice,
+                )
+                rb.pack(pady=2)
+                self.choice_buttons.append(rb)
+
+        elif q_type == "multi_choice":
+            self.selected_vars = []
+            for choice in choices:
+                var = tk.BooleanVar()
+                cb = tk.Checkbutton(
+                    text=choice,
+                    variable=var
+                )
+                cb.pack(anchor='center')
+                self.choice_buttons.append(cb)
+                self.selected_vars.append((var, choice))
 
     def _button_mode_text_question(self):
         self.correct_button.config(state=tk.DISABLED)
