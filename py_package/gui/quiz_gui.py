@@ -133,7 +133,7 @@ class QuizApp:
     def set_new_question(self):
         self.quiz_model.set_random_question()
 
-        self.result_label.config(text="", fg="black")
+        self._reset_result_field()
         self.clear_choices()
 
         if not self.quiz_model.is_cq_set:
@@ -335,12 +335,7 @@ class QuizApp:
                 self._button_mode_self_judge()
                 correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
-        if is_ok:
-            self.result_label.config(text="正解", fg="green", font=self.result_font)
-        elif q_type == "text":
-            self.result_label.config(text="正解: " + correct_answer, fg="blue", font=self.answer_font)
-        else:
-            self.result_label.config(text="不正解", fg="red", font=self.result_font)
+        self._set_result_field(is_ok, correct_answer)
 
     def on_exit(self):
         self.quiz_model.save()
@@ -348,6 +343,17 @@ class QuizApp:
 
     def start(self):
         self.root.mainloop()
+
+    def _reset_result_field(self):
+        self.result_label.config(text="", fg="black")
+
+    def _set_result_field(self, is_ok: bool, correct_answer: str = ""):
+        if is_ok:
+            self.result_label.config(text="正解", fg="green", font=self.result_font)
+        elif correct_answer:
+            self.result_label.config(text="正解: " + correct_answer, fg="blue", font=self.answer_font)
+        else:
+            self.result_label.config(text="不正解", fg="red", font=self.result_font)
 
     def _button_mode_text_question(self):
         self.correct_button.config(state=tk.DISABLED)
