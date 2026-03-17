@@ -136,30 +136,14 @@ class QuizApp:
         self._reset_result_field()
         self.clear_choices()
 
+        self._set_question_field()
         if not self.quiz_model.is_cq_set:
-            self.question_label.config(text="出題可能な問題がありません。")
-            self.stats_label.config(text="")
-            self.source_label.config(text="")
             self._button_mode_nothing()
             return
 
         quiz_field = self.quiz_model.cq_quiz_field
-        current_question = quiz_field[QuizField.Question.value]
         choices = quiz_field.get(QuizField.Choices.value)
         explanation = quiz_field[QuizField.Explanation.value]
-
-        stats = self.quiz_model.cq_stats
-        count = stats[Stats.Count.value]
-
-        self.question_label.config(text=current_question)
-        self.stats_label.config(
-            text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}"
-        )
-        
-        num_not_answered = self.quiz_model.get_num_not_answered_questions()
-        num_enable = self.quiz_model.get_num_enable_questions()
-        num_questoins = f"{num_enable}" if num_not_answered == 0 else f"{num_enable}({num_not_answered})"
-        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {num_questoins}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
 
         if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()
@@ -331,6 +315,7 @@ class QuizApp:
             if is_ok:
                 self.quiz_model.update_cq_stats(is_ok)
                 self._button_mode_fin_answer()
+                correct_answer = None
             else:
                 self._button_mode_self_judge()
                 correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
@@ -354,6 +339,26 @@ class QuizApp:
             self.result_label.config(text="正解: " + correct_answer, fg="blue", font=self.answer_font)
         else:
             self.result_label.config(text="不正解", fg="red", font=self.result_font)
+
+    def _set_question_field(self):
+        if not self.quiz_model.is_cq_set:
+            self.question_label.config(text="出題可能な問題がありません。")
+            self.stats_label.config(text="")
+            self.source_label.config(text="")
+        else:
+            quiz_field = self.quiz_model.cq_quiz_field
+            current_question = quiz_field[QuizField.Question.value]
+
+            stats = self.quiz_model.cq_stats
+            count = stats[Stats.Count.value]
+
+            self.question_label.config(text=current_question)
+            self.stats_label.config(text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}")
+
+            num_not_answered = self.quiz_model.get_num_not_answered_questions()
+            num_enable = self.quiz_model.get_num_enable_questions()
+            num_questoins = f"{num_enable}" if num_not_answered == 0 else f"{num_enable}({num_not_answered})"
+            self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {num_questoins}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
 
     def _button_mode_text_question(self):
         self.correct_button.config(state=tk.DISABLED)
