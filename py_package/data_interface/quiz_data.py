@@ -37,9 +37,19 @@ class QuestionDataInterface:
             self.loaded_question_dict[file_path] = questions
             self.load_stats(file_path)
 
-    def get_questions(self) -> list[Question]:
+    def get_all_source_basenames(self) -> list[str]:
+        """ロード済みファイルのベース名一覧を返す。"""
+        return [os.path.basename(fp) for fp in self.loaded_question_dict.keys()]
+
+    def get_questions(self, enabled_sources: set[str] | None = None) -> list[Question]:
+        """
+        enabled_sources が None の場合は全ファイルを対象とする。
+        指定した場合はそのファイル名（basename）に含まれるものだけを返す。
+        """
         result: list[Question] = []
-        for q_list in self.loaded_question_dict.values():
+        for file_path, q_list in self.loaded_question_dict.items():
+            if enabled_sources is not None and os.path.basename(file_path) not in enabled_sources:
+                continue
             result.extend(q_list)
         result = [q for q in result if not q.disabled]
         return result

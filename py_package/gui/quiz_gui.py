@@ -108,6 +108,12 @@ class QuizApp:
         )
         self.disable_button.pack(side=tk.LEFT, padx=5)
 
+        self.settings_button = tk.Button(
+            self.button_frame, text="設定",
+            command=self.open_settings
+        )
+        self.settings_button.pack(side=tk.LEFT, padx=5)
+
         self.exit_button = tk.Button(
             self.button_frame, text="終了",
             command=self.on_exit
@@ -198,6 +204,40 @@ class QuizApp:
 
         # 解説ボタン制御
         self._button_mode_explaination(explanation)
+
+    def open_settings(self):
+        """ソース設定ウィンドウを開く。"""
+        win = tk.Toplevel(self.root)
+        win.title("ソース設定")
+        win.resizable(False, False)
+        win.grab_set()  # モーダルにする
+
+        all_sources = self.quiz_model.get_all_source_files()
+        enabled = self.quiz_model.get_enabled_sources()
+
+        tk.Label(win, text="出題するソースファイルを選択してください",
+                 font=('Arial', 11, 'bold')).pack(padx=16, pady=(12, 6))
+
+        frame = tk.Frame(win)
+        frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=4)
+
+        vars_: dict[str, tk.BooleanVar] = {}
+        for source in all_sources:
+            var = tk.BooleanVar(value=(source in enabled))
+            vars_[source] = var
+            tk.Checkbutton(frame, text=source, variable=var,
+                           anchor='w').pack(fill=tk.X)
+
+        def apply():
+            new_enabled = {s for s, v in vars_.items() if v.get()}
+            self.quiz_model.reload_questions(new_enabled)
+            win.destroy()
+            self.next_question()
+
+        btn_frame = tk.Frame(win)
+        btn_frame.pack(pady=(8, 12))
+        tk.Button(btn_frame, text="適用", width=10, command=apply).pack(side=tk.LEFT, padx=6)
+        tk.Button(btn_frame, text="キャンセル", width=10, command=win.destroy).pack(side=tk.LEFT, padx=6)
 
     def manual_answer(self, is_ok):
         if not self.quiz_model.is_cq_set:
