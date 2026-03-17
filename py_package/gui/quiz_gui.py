@@ -313,10 +313,11 @@ class QuizApp:
             else:
                 self.show_answer()
                 self._button_mode_self_judge()
+                correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
 
         if is_ok:
             self.result_label.config(text="正解", fg="green")
-        elif not q_type == "text":
+        else:
             self.result_label.config(
                 text=f"不正解\n正解: {correct_answer}" if q_type == "text" else "不正解",
                 fg="red"
