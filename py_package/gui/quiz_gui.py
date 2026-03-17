@@ -162,7 +162,10 @@ class QuizApp:
             text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}"
         )
         
-        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {self.quiz_model.get_num_enable_questions()}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
+        num_not_answered = self.quiz_model.get_num_not_answered_questions()
+        num_enable = self.quiz_model.get_num_enable_questions()
+        num_questoins = f"{num_enable}" if num_not_answered == 0 else f"{num_enable}({num_not_answered})"
+        self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {num_questoins}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
 
         if self.quiz_model.cq_type == "single_choice":
             self.memo_frame.pack_forget()
@@ -327,7 +330,7 @@ class QuizApp:
 
     def _button_mode_text_question(self):
         self.show_answer_button.config(state=tk.DISABLED)
-        self.correct_button.config(state=tk.NORMAL)
+        self.correct_button.config(state=tk.DISABLED)
         self.incorrect_button.config(state=tk.DISABLED)
         self.answer_button.config(state=tk.NORMAL)
         self.next_button.config(state=tk.DISABLED)

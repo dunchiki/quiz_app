@@ -54,7 +54,7 @@ class Question(ABC):
             interval_a = self.interval + 1
             interval_b = self.interval * 1.5
             interval = min(interval_a, interval_b) if self.is_weak_question() else max(interval_a, interval_b)
-            self.interval = max(interval, 1.0)
+            self.interval = max(interval, 1.5)
         else:
             if len(self.resent_results) >= 2 and (not self.resent_results[-1] and not self.resent_results[-2]):
                 self.interval = 1.0

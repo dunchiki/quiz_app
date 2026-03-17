@@ -18,7 +18,10 @@ class QuizModel:
         return len([q for q in self.question_list if q.is_enable() or q.interval == 0])
     
     def get_num_today_answer_questions(self) -> int:
-        return len([q for q in self.question_list if q.last_view_date.date() == datetime.now().date()])
+        return len([q for q in self.question_list if q.last_view_date.date() == datetime.now().date() and (q.interval != 0)])
+    
+    def get_num_not_answered_questions(self) -> int:
+        return len([q for q in self.question_list if q.interval == 0])
 
     def set_random_question(self):
         not_answered_questions = [q for q in self.question_list if q.interval == 0]
