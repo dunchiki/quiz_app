@@ -138,13 +138,6 @@ class QuizApp:
 
     def set_new_question(self):
         self.quiz_model.set_random_question()
-        quiz_field = self.quiz_model.cq_quiz_field
-        current_question = quiz_field[QuizField.Question.value]
-        choices = quiz_field.get(QuizField.Choices.value)
-        explanation = quiz_field[QuizField.Explanation.value]
-
-        stats = self.quiz_model.cq_stats
-        count = stats[Stats.Count.value]
 
         self.answer_label.config(text="")
         self.result_label.config(text="", fg="black")
@@ -156,6 +149,14 @@ class QuizApp:
             self.source_label.config(text="")
             self._button_mode_nothing()
             return
+
+        quiz_field = self.quiz_model.cq_quiz_field
+        current_question = quiz_field[QuizField.Question.value]
+        choices = quiz_field.get(QuizField.Choices.value)
+        explanation = quiz_field[QuizField.Explanation.value]
+
+        stats = self.quiz_model.cq_stats
+        count = stats[Stats.Count.value]
 
         self.question_label.config(text=current_question)
         self.rate_label.config(
