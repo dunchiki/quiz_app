@@ -337,6 +337,7 @@ class QuizApp:
         if q_type == "single_choice":
             self.selected_choice.set("")
 
+            random.shuffle(choices)
             for choice in choices:
                 rb = tk.Radiobutton(
                     self.root,
@@ -349,6 +350,7 @@ class QuizApp:
 
         elif q_type == "multi_choice":
             self.selected_vars = []
+            random.shuffle(choices)
             for choice in choices:
                 var = tk.BooleanVar()
                 cb = tk.Checkbutton(
