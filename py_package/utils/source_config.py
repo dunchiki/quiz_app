@@ -4,9 +4,9 @@
 import json
 import os
 
-from quiz_config import SOURCE_CONFIG_FILE
+from quiz_config import SOURCE_CONFIG_FILE, STATS_FOLDER
 
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../..", SOURCE_CONFIG_FILE)
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../..", STATS_FOLDER,  SOURCE_CONFIG_FILE)
 
 
 def load_source_config() -> dict[str, bool]:
