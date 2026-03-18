@@ -1,193 +1,76 @@
 # =========================
-# GUI
+# GUI アプリケーション（制御層）
 # =========================
-from enum import Enum
 import tkinter as tk
-import random
 
 from py_package.set_question_models.set_question_model import QuizModel
 from py_package.utils.quiz_field import QuizField
 from py_package.utils.stats import Stats
-
-class ButtonMode(Enum):
-    NOTHING = 0
-    CHOICE_QUESTION = 1
-    TEXT_QUESTION = 2
-    FIN_ANSWER = 3
-    SELF_JUDGE = 4
+from py_package.gui.quiz_view import ButtonMode, QuizView
 
 class QuizApp:
-    question_font = ('Arial', 16)
-    result_font = ('Arial', 14, 'bold')
-    answer_font = ('Arial', 14)
-    stats_font = ('Arial', 12)
-    info_font = ('Arial', 10)
-
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("学習クイズ")
         self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
         self.quiz_model = QuizModel()
+        self.view = QuizView(self.root)
 
-        self.selected_choice = tk.StringVar()
-        self.choice_buttons = []
-
-        self.construct_gui()
-        self.next_question()
+        # コールバックをビューに登録
+        self.view.on_answer      = self.check_answer
+        self.view.on_next        = self.next_question
+        self.view.on_correct     = lambda: self.manual_answer(True)
+        self.view.on_incorrect   = lambda: self.manual_answer(False)
+        self.view.on_explanation = self.show_explanation
+        self.view.on_disable     = lambda: self.quiz_model.set_cq_disabled(True)
+        self.view.on_settings    = self.open_settings
+        self.view.on_exit        = self.on_exit
 
         self.root.bind("<Control-s>", lambda event: self.quiz_model.save())
-
-    def construct_gui(self):
-
-        # ===== コンテンツエリア =====
-        self.content_frame = tk.Frame(self.root)
-        self.content_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.question_label = tk.Label(
-            self.content_frame, font=self.question_font,
-            wraplength=600, justify='left'
-        )
-        self.question_label.pack(pady=20)
-
-        self.stats_label = tk.Label(self.content_frame, font=self.stats_font)
-        self.stats_label.pack()
-
-        self.source_label = tk.Label(
-            self.content_frame,
-            font=self.info_font,
-            fg="gray"
-        )
-        self.source_label.pack()
-
-        self.result_label = tk.Label(
-            self.content_frame,
-            font=self.result_font
-        )
-        self.result_label.pack(pady=5)
-
-        # ===== メモ入力エリア（記述問題用）=====
-        self.memo_frame = tk.Frame(self.root)
-        self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        self.memo_entry = tk.Entry(self.memo_frame)
-        self.memo_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-
-        # 初期状態では非表示
-        self.memo_frame.pack_forget()
-
-        # ===== ボタンエリア =====
-        self.button_frame = tk.Frame(self.root)
-        self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
-
-        self.explanation_button = tk.Button(
-            self.button_frame,
-            text="解説",
-            command=self.show_explanation,
-            state=tk.DISABLED
-        )
-        self.explanation_button.pack(side=tk.LEFT, padx=5)
-
-        self.correct_button = tk.Button(
-            self.button_frame, text="正解",
-            command=lambda: self.manual_answer(True)
-        )
-        self.correct_button.pack(side=tk.LEFT, padx=5)
-
-        self.incorrect_button = tk.Button(
-            self.button_frame, text="不正解",
-            command=lambda: self.manual_answer(False)
-        )
-        self.incorrect_button.pack(side=tk.LEFT, padx=5)
-
-        self.answer_button = tk.Button(
-            self.button_frame, text="回答",
-            command=self.check_answer
-        )
-        self.answer_button.pack(side=tk.LEFT, padx=5)
-
-        self.next_button = tk.Button(
-            self.button_frame, text="次へ",
-            command=self.next_question
-        )
-        self.next_button.pack(side=tk.LEFT, padx=5)
-
-        self.disable_button = tk.Button(
-            self.button_frame, text="無効化",
-            command=lambda: self.quiz_model.set_cq_disabled(True)
-        )
-        self.disable_button.pack(side=tk.LEFT, padx=5)
-
-        self.settings_button = tk.Button(
-            self.button_frame, text="設定",
-            command=self.open_settings
-        )
-        self.settings_button.pack(side=tk.LEFT, padx=5)
-
-        self.exit_button = tk.Button(
-            self.button_frame, text="終了",
-            command=self.on_exit
-        )
-        self.exit_button.pack(side=tk.RIGHT, padx=5)
+        self.next_question()
 
     def next_question(self):
-        self.set_new_question()
-
-    def set_new_question(self):
         self.quiz_model.set_random_question()
+        self.view.reset_result()
 
-        self._reset_result_field()
-
-        self._set_question_field()
         if not self.quiz_model.is_cq_set:
-            self._set_button_mode_with_expectation(ButtonMode.NOTHING, False)
+            self.view.show_no_questions()
+            self.view.set_button_mode(ButtonMode.NOTHING)
             return
 
-        quiz_field = self.quiz_model.cq_quiz_field
+        quiz_field    = self.quiz_model.cq_quiz_field
+        q_type        = self.quiz_model.cq_type
+        choices       = quiz_field.get(QuizField.Choices.value) or []
+        has_exp       = bool(quiz_field[QuizField.Explanation.value])
+        stats         = self.quiz_model.cq_stats
+        num_not_ans   = self.quiz_model.get_num_not_answered_questions()
+        num_enable    = self.quiz_model.get_num_enable_questions()
+        num_q         = f"{num_enable}" if num_not_ans == 0 else f"{num_enable}({num_not_ans})"
 
-        choices = quiz_field.get(QuizField.Choices.value)
-        self._set_choice_field(self.quiz_model.cq_type, choices)
-        self._set_memo_field(self.quiz_model.cq_type == "text")
-        if self.quiz_model.cq_type == "single_choice":
-            self._set_button_mode_with_expectation(ButtonMode.CHOICE_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
-        elif self.quiz_model.cq_type == "multi_choice":
-            self._set_button_mode_with_expectation(ButtonMode.CHOICE_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
-        elif self.quiz_model.cq_type == "text": # 記述問題
-            self._set_button_mode_with_expectation(ButtonMode.TEXT_QUESTION, bool(quiz_field[QuizField.Explanation.value]))
+        self.view.show_question(
+            question    = quiz_field[QuizField.Question.value],
+            stats_text  = f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f}  回答回数: {stats[Stats.Count.value]}",
+            source_text = f"出典: {self.quiz_model.cq_source_file},  有効問題数: {num_q},  本日回答数: {self.quiz_model.get_num_today_answer_questions()}"
+        )
+        self.view.set_choices(q_type, choices)
+        self.view.set_memo_visible(q_type == "text")
+
+        if q_type == "text":
+            self.view.set_button_mode(ButtonMode.TEXT_QUESTION, has_exp)
+        else:
+            self.view.set_button_mode(ButtonMode.CHOICE_QUESTION, has_exp)
 
     def open_settings(self):
-        """ソース設定ウィンドウを開く。"""
-        win = tk.Toplevel(self.root)
-        win.title("ソース設定")
-        win.resizable(False, False)
-        win.grab_set()  # モーダルにする
-
-        all_sources = self.quiz_model.get_all_source_files()
-        enabled = self.quiz_model.get_enabled_sources()
-
-        tk.Label(win, text="出題するソースファイルを選択してください",
-                 font=('Arial', 11, 'bold')).pack(padx=16, pady=(12, 6))
-
-        frame = tk.Frame(win)
-        frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=4)
-
-        vars_: dict[str, tk.BooleanVar] = {}
-        for source in all_sources:
-            var = tk.BooleanVar(value=(source in enabled))
-            vars_[source] = var
-            tk.Checkbutton(frame, text=source, variable=var,
-                           anchor='w').pack(fill=tk.X)
-
-        def apply():
-            new_enabled = {s for s, v in vars_.items() if v.get()}
+        def on_apply(new_enabled: set[str]):
             self.quiz_model.reload_questions(new_enabled)
-            win.destroy()
             self.next_question()
 
-        btn_frame = tk.Frame(win)
-        btn_frame.pack(pady=(8, 12))
-        tk.Button(btn_frame, text="適用", width=10, command=apply).pack(side=tk.LEFT, padx=6)
-        tk.Button(btn_frame, text="キャンセル", width=10, command=win.destroy).pack(side=tk.LEFT, padx=6)
+        self.view.open_settings_dialog(
+            all_sources     = self.quiz_model.get_all_source_files(),
+            enabled_sources = self.quiz_model.get_enabled_sources(),
+            on_apply        = on_apply,
+        )
 
     def manual_answer(self, is_ok):
         if not self.quiz_model.is_cq_set:
@@ -199,18 +82,10 @@ class QuizApp:
     def show_explanation(self):
         if not self.quiz_model.is_cq_set:
             return
-
         explanation = self.quiz_model.cq_quiz_field[QuizField.Explanation.value]
         if not explanation:
             return
-
-        window = tk.Toplevel(self.root)
-        window.title("解説")
-
-        text = tk.Text(window, wrap=tk.WORD)
-        text.insert(tk.END, explanation)
-        text.config(state=tk.DISABLED)
-        text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.view.show_explanation_window(explanation)
 
     def check_answer(self):
         assert self.quiz_model.is_cq_set
@@ -221,70 +96,40 @@ class QuizApp:
         # 単一選択問題
         # =========================
         if q_type == "single_choice":
-
-            selected = self.selected_choice.get()
-
-            is_ok = bool(selected) and self.quiz_model.is_correct_answer(selected)
+            selected       = self.view.get_selected_single()
+            is_ok          = bool(selected) and self.quiz_model.is_correct_answer(selected)
             correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
-
-            for rb in self.choice_buttons:
-                value = rb.cget("text")
-
-                if value == correct_answer:
-                    rb.config(disabledforeground="green")
-
-                if value == selected and not is_ok:
-                    rb.config(disabledforeground="red")
-
-                rb.config(state=tk.DISABLED)
-
+            self.view.apply_single_choice_colors(correct_answer, selected)
             self.quiz_model.update_cq_stats(is_ok)
-
-            self._set_button_mode(ButtonMode.FIN_ANSWER)
+            self.view.set_button_mode(ButtonMode.FIN_ANSWER)
+            self.view.set_result(is_ok, None if is_ok else correct_answer)
 
         # =========================
         # 複数選択問題
         # =========================
-        if q_type == "multi_choice":
-
-            selected = [
-                choice for var, choice in self.selected_vars
-                if var.get()
-            ]
-
-            is_ok = self.quiz_model.is_correct_answer(selected)
+        elif q_type == "multi_choice":
+            selected        = self.view.get_selected_multi()
+            is_ok           = self.quiz_model.is_correct_answer(selected)
             correct_answers = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
-
-            for cb in self.choice_buttons:
-                text = cb.cget("text")
-
-                if text in correct_answers:
-                    cb.config(disabledforeground="green")
-
-                if text in selected and text not in correct_answers:
-                    cb.config(disabledforeground="red")
-
-                cb.config(state=tk.DISABLED)
-            
-            correct_answer = ', '.join(correct_answers)
-
+            self.view.apply_multi_choice_colors(correct_answers, selected)
             self.quiz_model.update_cq_stats(is_ok)
+            self.view.set_button_mode(ButtonMode.FIN_ANSWER)
+            self.view.set_result(is_ok, None if is_ok else ', '.join(correct_answers))
 
-            self._set_button_mode(ButtonMode.FIN_ANSWER)
-
-        if q_type == "text":
-            answer = self.memo_entry.get()
-            is_ok = self.quiz_model.is_correct_answer(answer)
-
+        # =========================
+        # 記述問題
+        # =========================
+        elif q_type == "text":
+            answer = self.view.get_memo_text()
+            is_ok  = self.quiz_model.is_correct_answer(answer)
             if is_ok:
-                self.quiz_model.update_cq_stats(is_ok)
-                self._set_button_mode(ButtonMode.FIN_ANSWER)
-                correct_answer = None
+                self.quiz_model.update_cq_stats(True)
+                self.view.set_button_mode(ButtonMode.FIN_ANSWER)
+                self.view.set_result(True)
             else:
-                self._set_button_mode(ButtonMode.SELF_JUDGE)
                 correct_answer = self.quiz_model.cq_quiz_field[QuizField.Answer.value]
-
-        self._set_result_field(is_ok, correct_answer)
+                self.view.set_button_mode(ButtonMode.SELF_JUDGE)
+                self.view.set_result(False, correct_answer)
 
     def on_exit(self):
         self.quiz_model.save()
@@ -292,104 +137,3 @@ class QuizApp:
 
     def start(self):
         self.root.mainloop()
-
-    def _set_memo_field(self, is_visible):
-        if is_visible:
-            self.memo_entry.delete(0, tk.END)
-            self.memo_frame.pack(fill=tk.X, padx=10, pady=5)
-        else:
-            self.memo_frame.pack_forget()
-
-    def _reset_result_field(self):
-        self.result_label.config(text="", fg="black")
-
-    def _set_result_field(self, is_ok: bool, correct_answer: str = ""):
-        if is_ok:
-            self.result_label.config(text="正解", fg="green", font=self.result_font)
-        elif correct_answer:
-            self.result_label.config(text="正解: " + correct_answer, fg="blue", font=self.answer_font)
-        else:
-            self.result_label.config(text="不正解", fg="red", font=self.result_font)
-
-    def _set_question_field(self):
-        if not self.quiz_model.is_cq_set:
-            self.question_label.config(text="出題可能な問題がありません。")
-            self.stats_label.config(text="")
-            self.source_label.config(text="")
-        else:
-            quiz_field = self.quiz_model.cq_quiz_field
-            current_question = quiz_field[QuizField.Question.value]
-
-            stats = self.quiz_model.cq_stats
-            count = stats[Stats.Count.value]
-
-            self.question_label.config(text=current_question)
-            self.stats_label.config(text=f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f} 回答回数: {count}")
-
-            num_not_answered = self.quiz_model.get_num_not_answered_questions()
-            num_enable = self.quiz_model.get_num_enable_questions()
-            num_questoins = f"{num_enable}" if num_not_answered == 0 else f"{num_enable}({num_not_answered})"
-            self.source_label.config(text=f"出典: {self.quiz_model.cq_source_file}, 有効問題数: {num_questoins}, 本日回答数: {self.quiz_model.get_num_today_answer_questions()}")
-
-    def _set_choice_field(self, q_type, choices: list[str]):
-        for btn in self.choice_buttons:
-            btn.destroy()
-        self.choice_buttons.clear()
-
-        if q_type == "single_choice":
-            self.selected_choice.set("")
-
-            random.shuffle(choices)
-            for choice in choices:
-                rb = tk.Radiobutton(
-                    self.root,
-                    text=choice,
-                    variable=self.selected_choice,
-                    value=choice,
-                )
-                rb.pack(pady=2)
-                self.choice_buttons.append(rb)
-
-        elif q_type == "multi_choice":
-            self.selected_vars = []
-            random.shuffle(choices)
-            for choice in choices:
-                var = tk.BooleanVar()
-                cb = tk.Checkbutton(
-                    text=choice,
-                    variable=var
-                )
-                cb.pack(anchor='center')
-                self.choice_buttons.append(cb)
-                self.selected_vars.append((var, choice))
-
-    def _set_button_mode(self, mode: ButtonMode):
-        if mode == ButtonMode.TEXT_QUESTION:
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.NORMAL)
-            self.next_button.config(state=tk.DISABLED)
-        elif mode == ButtonMode.CHOICE_QUESTION:
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.NORMAL)
-            self.next_button.config(state=tk.DISABLED)
-        elif mode == ButtonMode.FIN_ANSWER:
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.DISABLED)
-            self.next_button.config(state=tk.NORMAL)
-        elif mode == ButtonMode.SELF_JUDGE:
-            self.correct_button.config(state=tk.NORMAL)
-            self.incorrect_button.config(state=tk.NORMAL)
-            self.answer_button.config(state=tk.DISABLED)
-            self.next_button.config(state=tk.DISABLED)
-        else:
-            self.correct_button.config(state=tk.DISABLED)
-            self.incorrect_button.config(state=tk.DISABLED)
-            self.answer_button.config(state=tk.DISABLED)
-            self.next_button.config(state=tk.DISABLED)
-
-    def _set_button_mode_with_expectation(self, mode: ButtonMode, has_explanation: bool):
-        self._set_button_mode(mode)
-        self.explanation_button.config(state=tk.NORMAL if has_explanation else tk.DISABLED)
