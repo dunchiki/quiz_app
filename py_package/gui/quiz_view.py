@@ -33,14 +33,16 @@ class QuizView:
         # =============================
         # コールバック（コントローラーが設定する）
         # =============================
-        self.on_answer:      Callable = lambda: None
-        self.on_next:        Callable = lambda: None
-        self.on_correct:     Callable = lambda: None
-        self.on_incorrect:   Callable = lambda: None
-        self.on_explanation: Callable = lambda: None
-        self.on_disable:     Callable = lambda: None
-        self.on_settings:    Callable = lambda: None
-        self.on_exit:        Callable = lambda: None
+        self.on_answer:          Callable         = lambda: None
+        self.on_next:            Callable         = lambda: None
+        self.on_correct:         Callable         = lambda: None
+        self.on_incorrect:       Callable         = lambda: None
+        self.on_explanation:     Callable         = lambda: None
+        self.on_disable_changed: Callable[[bool], None] = lambda _: None
+        self.on_settings:        Callable         = lambda: None
+        self.on_exit:            Callable         = lambda: None
+
+        self._disabled_var = tk.BooleanVar(value=False)
 
         self._build()
 
@@ -112,11 +114,12 @@ class QuizView:
         )
         self.next_button.pack(side=tk.LEFT, padx=5)
 
-        self.disable_button = tk.Button(
+        self.disable_check = tk.Checkbutton(
             self.button_frame, text="無効化",
-            command=lambda: self.on_disable()
+            variable=self._disabled_var,
+            command=lambda: self.on_disable_changed(self._disabled_var.get())
         )
-        self.disable_button.pack(side=tk.LEFT, padx=5)
+        self.disable_check.pack(side=tk.LEFT, padx=5)
 
         self.settings_button = tk.Button(
             self.button_frame, text="設定",
@@ -142,6 +145,11 @@ class QuizView:
         self.question_label.config(text="出題可能な問題がありません。")
         self.stats_label.config(text="")
         self.source_label.config(text="")
+
+    def set_disabled_state(self, is_disabled: bool):
+        """現在の問題の無効化チェックボックスの状態を更新する。"""
+        self._disabled_var.set(is_disabled)
+        self.disable_check.config(state=tk.NORMAL)
 
     # ==========================================
     # 結果表示
@@ -253,6 +261,8 @@ class QuizView:
         self.incorrect_button.config(state=s['incorrect'])
         self.answer_button.config(state=s['answer'])
         self.next_button.config(state=s['next'])
+        if mode == ButtonMode.NOTHING:
+            self.disable_check.config(state=tk.DISABLED)
 
     def set_button_mode_with_explanation(self, mode: ButtonMode, has_explanation: bool = False):
         _DISABLED = tk.DISABLED

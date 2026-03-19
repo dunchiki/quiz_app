@@ -86,6 +86,8 @@ class QuizModel:
     @property
     def cq_correct_rate(self) -> float: return self._current_question.get_correct_rate()
     @property
+    def cq_disabled(self) -> bool: return self._current_question.disabled
+    @property
     def cq_quiz_field(self) -> dict: return self._current_question.get_quiz_field()
     @property
     def cq_source_file(self) -> str: return self._current_question.source_file

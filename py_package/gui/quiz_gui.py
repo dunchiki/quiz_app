@@ -23,7 +23,7 @@ class QuizApp:
         self.view.on_correct     = lambda: self.manual_answer(True)
         self.view.on_incorrect   = lambda: self.manual_answer(False)
         self.view.on_explanation = self.show_explanation
-        self.view.on_disable     = lambda: self.quiz_model.set_cq_disabled(True)
+        self.view.on_disable_changed = lambda val: self.quiz_model.set_cq_disabled(val)
         self.view.on_settings    = self.open_settings
         self.view.on_exit        = self.on_exit
 
@@ -55,6 +55,7 @@ class QuizApp:
         )
         self.view.set_choices(q_type, choices)
         self.view.set_memo_visible(q_type == "text")
+        self.view.set_disabled_state(self.quiz_model.cq_disabled)
 
         if q_type == "text":
             self.view.set_button_mode_with_explanation(ButtonMode.TEXT_QUESTION, has_exp)
