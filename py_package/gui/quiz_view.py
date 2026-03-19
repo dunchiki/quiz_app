@@ -306,6 +306,13 @@ class QuizView:
             vars_[source] = var
             tk.Checkbutton(frame, text=source, variable=var, anchor='w').pack(fill=tk.X)
 
+        bulk_frame = tk.Frame(win)
+        bulk_frame.pack(pady=(4, 0))
+        tk.Button(bulk_frame, text="全て有効", width=10,
+                  command=lambda: [v.set(True)  for v in vars_.values()]).pack(side=tk.LEFT, padx=6)
+        tk.Button(bulk_frame, text="全て無効", width=10,
+                  command=lambda: [v.set(False) for v in vars_.values()]).pack(side=tk.LEFT, padx=6)
+
         def _apply():
             on_apply({s for s, v in vars_.items() if v.get()})
             win.destroy()
