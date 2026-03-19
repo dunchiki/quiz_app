@@ -57,9 +57,9 @@ class QuizApp:
         self.view.set_memo_visible(q_type == "text")
 
         if q_type == "text":
-            self.view.set_button_mode(ButtonMode.TEXT_QUESTION, has_exp)
+            self.view.set_button_mode_with_explanation(ButtonMode.TEXT_QUESTION, has_exp)
         else:
-            self.view.set_button_mode(ButtonMode.CHOICE_QUESTION, has_exp)
+            self.view.set_button_mode_with_explanation(ButtonMode.CHOICE_QUESTION, has_exp)
 
     def open_settings(self):
         def on_apply(new_enabled: set[str]):

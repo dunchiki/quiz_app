@@ -236,7 +236,7 @@ class QuizView:
     # ==========================================
     # ボタン有効/無効制御
     # ==========================================
-    def set_button_mode(self, mode: ButtonMode, has_explanation: bool = False):
+    def set_button_mode(self, mode: ButtonMode):
         _DISABLED = tk.DISABLED
         _NORMAL   = tk.NORMAL
 
@@ -253,6 +253,11 @@ class QuizView:
         self.incorrect_button.config(state=s['incorrect'])
         self.answer_button.config(state=s['answer'])
         self.next_button.config(state=s['next'])
+
+    def set_button_mode_with_explanation(self, mode: ButtonMode, has_explanation: bool = False):
+        _DISABLED = tk.DISABLED
+        _NORMAL   = tk.NORMAL
+        self.set_button_mode(mode)
         self.explanation_button.config(state=_NORMAL if has_explanation else _DISABLED)
 
     # ==========================================
