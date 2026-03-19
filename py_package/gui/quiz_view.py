@@ -285,7 +285,9 @@ class QuizView:
         self,
         all_sources: list[str],
         enabled_sources: set[str],
-        on_apply: Callable[[set[str]], None],
+        rate_filter_enabled: bool,
+        rate_filter_threshold: float,
+        on_apply: Callable[[set[str], bool, float], None],
     ):
         win = tk.Toplevel(self.root)
         win.title("ソース設定")
@@ -313,11 +315,28 @@ class QuizView:
         tk.Button(bulk_frame, text="全て無効", width=10,
                   command=lambda: [v.set(False) for v in vars_.values()]).pack(side=tk.LEFT, padx=6)
 
+        # ===== 正答率フィルター =====
+        tk.Frame(win, height=1, bg="#cccccc").pack(fill=tk.X, padx=16, pady=(10, 6))
+
+        filter_frame = tk.Frame(win)
+        filter_frame.pack(fill=tk.X, padx=16, pady=(0, 8))
+
+        v_enabled   = tk.BooleanVar(value=rate_filter_enabled)
+        v_threshold = tk.StringVar(value=str(int(rate_filter_threshold * 100)))
+
+        tk.Checkbutton(filter_frame, text="正答率が", variable=v_enabled).pack(side=tk.LEFT)
+        tk.Entry(filter_frame, textvariable=v_threshold, width=5, justify='right').pack(side=tk.LEFT, padx=2)
+        tk.Label(filter_frame, text="% 以下の問題のみ出題する").pack(side=tk.LEFT)
+
         def _apply():
-            on_apply({s for s, v in vars_.items() if v.get()})
+            try:
+                threshold = max(0, min(100, int(v_threshold.get()))) / 100
+            except ValueError:
+                threshold = rate_filter_threshold
+            on_apply({s for s, v in vars_.items() if v.get()}, v_enabled.get(), threshold)
             win.destroy()
 
         btn_frame = tk.Frame(win)
-        btn_frame.pack(pady=(8, 12))
+        btn_frame.pack(pady=(0, 12))
         tk.Button(btn_frame, text="適用",     width=10, command=_apply).pack(side=tk.LEFT, padx=6)
         tk.Button(btn_frame, text="キャンセル", width=10, command=win.destroy).pack(side=tk.LEFT, padx=6)

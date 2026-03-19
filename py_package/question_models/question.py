@@ -92,8 +92,12 @@ class Question(ABC):
         return weight_with_time * weight_with_correct_rate
     
     def is_enable(self):
+        return (not self.disabled) and self.is_interval_ready()
+
+    def is_interval_ready(self) -> bool:
+        """disabled フラグを無視して、インターバル条件のみを判定する。"""
         next_review = self.last_view_date + timedelta(days=self.interval)
-        return (not self.disabled) and (datetime.now() > next_review)
+        return datetime.now() > next_review
 
     def is_weak_question(self) -> bool: return (self.get_correct_rate() < WEEK_QUESTION_RATE_LIMIT) or (self.view_count <= 2)
 

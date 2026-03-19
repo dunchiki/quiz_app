@@ -45,13 +45,13 @@ class QuizApp:
         has_exp       = bool(quiz_field[QuizField.Explanation.value])
         stats         = self.quiz_model.cq_stats
         num_not_ans   = self.quiz_model.get_num_not_answered_questions()
-        num_enable    = self.quiz_model.get_num_enable_questions()
-        num_q         = f"{num_enable}" if num_not_ans == 0 else f"{num_enable}({num_not_ans})"
+        num_enable    = self.quiz_model.get_num_enable_questions_with_rate_filter()
+        num_enable_str         = f"{num_enable}" if num_not_ans == 0 else f"{num_enable}({num_not_ans})"
 
         self.view.show_question(
             question    = quiz_field[QuizField.Question.value],
             stats_text  = f"直近正答率: {self.quiz_model.cq_correct_rate * 100:.1f}  回答回数: {stats[Stats.Count.value]}",
-            source_text = f"出典: {self.quiz_model.cq_source_file},  有効問題数: {num_q},  本日回答数: {self.quiz_model.get_num_today_answer_questions()}"
+            source_text = f"出典: {self.quiz_model.cq_source_file},  有効問題数: {num_enable_str},  本日回答数: {self.quiz_model.get_num_today_answer_questions()}"
         )
         self.view.set_choices(q_type, choices)
         self.view.set_memo_visible(q_type == "text")
@@ -63,14 +63,19 @@ class QuizApp:
             self.view.set_button_mode_with_explanation(ButtonMode.CHOICE_QUESTION, has_exp)
 
     def open_settings(self):
-        def on_apply(new_enabled: set[str]):
+        enabled, threshold = self.quiz_model.get_rate_filter()
+
+        def on_apply(new_enabled: set[str], rate_enabled: bool, rate_threshold: float):
             self.quiz_model.reload_questions(new_enabled)
+            self.quiz_model.set_rate_filter(rate_enabled, rate_threshold)
             self.next_question()
 
         self.view.open_settings_dialog(
-            all_sources     = self.quiz_model.get_all_source_files(),
-            enabled_sources = self.quiz_model.get_enabled_sources(),
-            on_apply        = on_apply,
+            all_sources           = self.quiz_model.get_all_source_files(),
+            enabled_sources       = self.quiz_model.get_enabled_sources(),
+            rate_filter_enabled   = enabled,
+            rate_filter_threshold = threshold,
+            on_apply              = on_apply,
         )
 
     def manual_answer(self, is_ok):
