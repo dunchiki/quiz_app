@@ -22,8 +22,9 @@ class QuizView:
     stats_font    = ('Arial', 12)
     info_font     = ('Arial', 10)
 
-    def __init__(self, root: tk.Tk):
-        self.root = root
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("学習クイズ")
 
         # 選択肢の状態
         self.selected_choice = tk.StringVar()
@@ -340,3 +341,21 @@ class QuizView:
         btn_frame.pack(pady=(0, 12))
         tk.Button(btn_frame, text="適用",     width=10, command=_apply).pack(side=tk.LEFT, padx=6)
         tk.Button(btn_frame, text="キャンセル", width=10, command=win.destroy).pack(side=tk.LEFT, padx=6)
+
+    # ==========================================
+    # ウィンドウ管理
+    # ==========================================
+    def set_title(self, title: str):
+        self.root.title(title)
+
+    def set_close_callback(self, callback: Callable):
+        self.root.protocol("WM_DELETE_WINDOW", callback)
+
+    def bind_key(self, key: str, callback: Callable):
+        self.root.bind(key, callback)
+
+    def quit(self):
+        self.root.quit()
+
+    def mainloop(self):
+        self.root.mainloop()

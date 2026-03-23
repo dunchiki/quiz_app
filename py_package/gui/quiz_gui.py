@@ -1,8 +1,6 @@
 # =========================
 # GUI アプリケーション（制御層）
 # =========================
-import tkinter as tk
-
 from py_package.set_question_models.set_question_model import QuizModel
 from py_package.utils.quiz_field import QuizField
 from py_package.utils.stats import Stats
@@ -10,12 +8,10 @@ from py_package.gui.quiz_view import ButtonMode, QuizView
 
 class QuizApp:
     def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("学習クイズ")
-        self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
-
         self.quiz_model = QuizModel()
-        self.view = QuizView(self.root)
+        self.view = QuizView()
+
+        self.view.set_close_callback(self.on_exit)
 
         # コールバックをビューに登録
         self.view.on_answer      = self.check_answer
@@ -27,7 +23,7 @@ class QuizApp:
         self.view.on_settings    = self.open_settings
         self.view.on_exit        = self.on_exit
 
-        self.root.bind("<Control-s>", lambda event: self.quiz_model.save())
+        self.view.bind_key("<Control-s>", lambda event: self.quiz_model.save())
         self.next_question()
 
     def next_question(self):
@@ -139,7 +135,7 @@ class QuizApp:
 
     def on_exit(self):
         self.quiz_model.save()
-        self.root.quit()
+        self.view.quit()
 
     def start(self):
-        self.root.mainloop()
+        self.view.mainloop()
