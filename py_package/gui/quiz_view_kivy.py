@@ -23,7 +23,13 @@ from kivy.metrics import dp
 # 日本語フォント設定
 # Kivy のデフォルトフォント (Roboto) を日本語対応フォントで上書きする
 # ==========================================
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+
 _JP_FONT_CANDIDATES = [
+    os.path.join(_PROJECT_ROOT, 'assets', 'fonts', 'NotoSansJP-Regular.ttf'),
+    os.path.join(_PROJECT_ROOT, 'assets', 'fonts', 'NotoSansCJKjp-Regular.otf'),
+    '/system/fonts/NotoSansCJK-Regular.ttc',
+    '/system/fonts/NotoSansJP-Regular.otf',
     'C:/Windows/Fonts/meiryo.ttc',    # Meiryo (Windows Vista+)
     'C:/Windows/Fonts/msgothic.ttc',  # MS Gothic (Windows XP+)
     'C:/Windows/Fonts/YuGothM.ttc',   # Yu Gothic Medium (Windows 10+)
