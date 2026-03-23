@@ -5,9 +5,9 @@ import json
 import os
 
 from quiz_config import SOURCE_CONFIG_FILE
-from py_package.utils.app_paths import get_stats_dir
+from py_package.utils.app_paths import get_profile_dir
 
-_CONFIG_PATH = os.path.join(get_stats_dir(), SOURCE_CONFIG_FILE)
+_CONFIG_PATH = os.path.join(get_profile_dir(), SOURCE_CONFIG_FILE)
 
 
 def _load_full() -> dict:

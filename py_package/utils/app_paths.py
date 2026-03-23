@@ -3,7 +3,7 @@
 # =========================
 import os
 
-from quiz_config import DATA_FOLDER, STATS_FOLDER
+from quiz_config import DATA_FOLDER, PROFILE_FOLDER, STATS_FOLDER
 
 
 def _project_root() -> str:
@@ -30,3 +30,12 @@ def get_stats_dir() -> str:
         if android_private:
             return os.path.join(android_private, "files", STATS_FOLDER)
     return os.path.join(_project_root(), STATS_FOLDER)
+
+
+def get_profile_dir() -> str:
+    """プロフィール/設定保存フォルダの実体パスを返す。"""
+    if is_android_runtime():
+        android_private = os.environ.get("ANDROID_PRIVATE")
+        if android_private:
+            return os.path.join(android_private, "files", PROFILE_FOLDER)
+    return os.path.join(_project_root(), PROFILE_FOLDER)
