@@ -1,10 +1,15 @@
 # =========================
 # GUI アプリケーション（制御層）
 # =========================
+from quiz_config import GUI_BACKEND
 from py_package.set_question_models.set_question_model import QuizModel
 from py_package.utils.quiz_field import QuizField
 from py_package.utils.stats import Stats
-from py_package.gui.quiz_view import ButtonMode, QuizView
+
+if GUI_BACKEND == 'kivy':
+    from py_package.gui.quiz_view_kivy import ButtonMode, QuizView
+else:
+    from py_package.gui.quiz_view import ButtonMode, QuizView
 
 class QuizApp:
     def __init__(self):
