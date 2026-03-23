@@ -6,8 +6,7 @@ from glob import glob
 import json
 import os
 
-from quiz_config import STATS_FOLDER, DATA_FOLDER
-
+from py_package.utils.app_paths import get_data_dir, get_stats_dir
 from py_package.utils.quiz_field import QuizField
 from py_package.question_models.multi_choice import MultiChoiceQuestion
 from py_package.question_models.question import Question
@@ -16,9 +15,10 @@ from py_package.question_models.text_question import TextQuestion
 
 class QuestionDataInterface:
     def __init__(self):
-        os.makedirs(STATS_FOLDER, exist_ok=True)
+        stats_dir = get_stats_dir()
+        os.makedirs(stats_dir, exist_ok=True)
 
-        data_path = os.path.join(os.path.dirname(__file__), "../.." , DATA_FOLDER)
+        data_path = get_data_dir()
         self.loaded_files = (
             glob(os.path.join(data_path, '*.csv')) +
             glob(os.path.join(data_path, '*.json'))
@@ -133,4 +133,4 @@ class QuestionDataInterface:
 
     def __file_to_stat_file(self, file_path):
         base = os.path.splitext(os.path.basename(file_path))[0]
-        return os.path.join(os.path.dirname(__file__), "../..", STATS_FOLDER, f"{base}.json")
+        return os.path.join(get_stats_dir(), f"{base}.json")

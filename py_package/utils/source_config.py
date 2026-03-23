@@ -4,9 +4,10 @@
 import json
 import os
 
-from quiz_config import SOURCE_CONFIG_FILE, STATS_FOLDER
+from quiz_config import SOURCE_CONFIG_FILE
+from py_package.utils.app_paths import get_stats_dir
 
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../..", STATS_FOLDER, SOURCE_CONFIG_FILE)
+_CONFIG_PATH = os.path.join(get_stats_dir(), SOURCE_CONFIG_FILE)
 
 
 def _load_full() -> dict:
@@ -17,6 +18,7 @@ def _load_full() -> dict:
 
 
 def _save_full(data: dict):
+    os.makedirs(os.path.dirname(_CONFIG_PATH), exist_ok=True)
     with open(_CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
